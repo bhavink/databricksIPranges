@@ -24,8 +24,8 @@ cd path/to/extract-databricks-ips
 
 ## 2. Quick commands
 
-**One cloud, CSV (default)**  
-Output columns: `cloud`, `region`, `type`, `cidr`, `ipVersion`, `service`.
+**One cloud, simple (default)**  
+One CIDR per line. Use `--format csv` for columns: `cloud`, `region`, `type`, `cidr`, `ipVersion`, `service`.
 
 ```bash
 python extract-databricks-ips.py --cloud aws
@@ -73,9 +73,9 @@ python extract-databricks-ips.py --file https://www.databricks.com/networking/v1
 
 | Flag           | Output |
 |----------------|--------|
-| *(default)*    | CSV: `cloud,region,type,cidr,ipVersion,service` |
+| *(default)*    | Simple: one CIDR per line (PA/firewall friendly) |
+| `--format csv` | CSV: `cloud,region,type,cidr,ipVersion,service` |
 | `--format json`| JSON array of objects |
-| `--format simple` | One CIDR per line (good for scripts) |
 
 ---
 
