@@ -7,14 +7,14 @@ Filters by cloud provider and region, outputs JSON suitable for firewall rules.
 
 Usage:
     python extract-databricks-ips.py --cloud aws
-        # Per cloud: CSV (default) with cloud, region, type, cidr, ipVersion, service
+        # Per cloud: simple (default) one CIDR per line; use --format csv for table
     python extract-databricks-ips.py --cloud aws --region us-east-1,us-west-2,eu-west-1
         # Multiple regions (comma-separated); output includes both inbound and outbound
     python extract-databricks-ips.py --cloud aws --region us-east-1 --type outbound
         # Single region, outbound only (egress allowlisting)
     python extract-databricks-ips.py --list-regions --cloud aws
 
-Default output: CSV. Omit --type to include both inbound and outbound.
+Default output: simple (one CIDR per line). Omit --type to include both inbound and outbound.
 Input: --source or --file with URL or local JSON path.
 """
 
@@ -337,8 +337,8 @@ Examples:
     parser.add_argument(
         "--format", "-f",
         choices=["json", "csv", "simple"],
-        default="csv",
-        help="Output format: csv (cloud,region,type,cidr,...), json, or simple. Default: csv"
+        default="simple",
+        help="Output format: simple (one CIDR per line, default), csv, or json"
     )
 
     parser.add_argument(
