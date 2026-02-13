@@ -92,6 +92,25 @@ def main():
     output_index_lines.append("</body></html>")
     (OUTPUT_DIR / "index.html").write_text("\n".join(output_index_lines))
 
+    # Directory index for json-history/ (GitHub Pages doesn't list directories)
+    json_files = sorted(JSON_HISTORY_DIR.glob("*.json"), reverse=True)  # newest first
+    history_index_lines = [
+        "<!DOCTYPE html>",
+        "<html lang=\"en\">",
+        "<head><meta charset=\"UTF-8\"><title>JSON History – Databricks IP Ranges</title>",
+        "<style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;max-width:640px;margin:2em auto;padding:0 20px;} a{color:#0969da;} ul{list-style:none;padding-left:0;} li{margin:8px 0;}</style>",
+        "</head><body>",
+        "<h1>JSON History</h1>",
+        "<p>Snapshot of the official Databricks IP ranges JSON per run. Click to download.</p>",
+        "<ul>",
+    ]
+    for f in json_files:
+        history_index_lines.append(f'  <li><a href="{f.name}">{f.name}</a></li>')
+    history_index_lines.append("</ul>")
+    history_index_lines.append("<p><a href=\"../index.html\">Back to databricksIPranges</a></p>")
+    history_index_lines.append("</body></html>")
+    (JSON_HISTORY_DIR / "index.html").write_text("\n".join(history_index_lines))
+
     # Generate docs/index.html (azureIPranges-style for Databricks AWS/Azure/GCP)
     now_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     latest_json_link = f'<a href="json-history/{latest_history_basename}">{latest_history_basename}</a>' if latest_history_basename else "—"
@@ -117,9 +136,8 @@ def main():
 
   <h2>Source JSON Files</h2>
   <p><strong>Revision / schema version:</strong> {revision_display}</p>
-  <p><strong>Databricks IP Ranges (official):</strong> <a href="https://docs.databricks.com/security/network/ip-ranges.html">Databricks docs – IP ranges</a></p>
-  <p><strong>Latest JSON file (standardized name):</strong> <a href="{SOURCE_URL}">ip-ranges.json</a></p>
-  <p><strong>Latest specific version (this site):</strong> {latest_json_link}</p>
+  <p><strong>Official source (JSON):</strong> <a href="{SOURCE_URL}">ip-ranges.json</a> — Databricks' machine-readable list (the docs page is often empty; this JSON is the source of truth).</p>
+  <p><strong>Latest snapshot on this site:</strong> {latest_json_link}</p>
   <p><strong>Previous JSON versions:</strong> <a href="json-history/">View JSON History</a></p>
 
   <h2>Palo Alto Networks Ready Files</h2>
@@ -151,7 +169,7 @@ def main():
 </html>
 """
     (DOCS / "index.html").write_text(index_html)
-    print("Generated docs/output/*.txt, docs/output/index.html, and docs/index.html")
+    print("Generated docs/output/*.txt, docs/output/index.html, docs/json-history/index.html, and docs/index.html")
 
 
 if __name__ == "__main__":

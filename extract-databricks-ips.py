@@ -27,7 +27,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # Official Databricks IP ranges (AWS, Azure, GCP – inbound/outbound)
-# https://docs.databricks.com/security/network/ip-ranges.html
+# Source of truth: JSON below (docs.databricks.com/.../ip-ranges is often empty)
 DEFAULT_URL = "https://www.databricks.com/networking/v1/ip-ranges.json"
 
 

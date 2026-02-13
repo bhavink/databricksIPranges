@@ -4,7 +4,7 @@
 
 **Databricks** IP ranges for firewall allowlisting — **all supported clouds: AWS, Azure, and GCP** (not Azure-only).  
 A Python utility that retrieves, processes, and organizes the official [Databricks IP ranges](https://www.databricks.com/networking/v1/ip-ranges.json) and produces per-cloud, PA-compatible TXT files.  
-Source: [Databricks IP ranges JSON](https://www.databricks.com/networking/v1/ip-ranges.json) · [Docs](https://docs.databricks.com/security/network/ip-ranges.html)
+**Source (authoritative):** [Databricks IP ranges JSON](https://www.databricks.com/networking/v1/ip-ranges.json) — the docs page (`docs.databricks.com/.../ip-ranges`) is often empty or moved; the JSON is the current machine-readable source.
 
 ## Features
 
