@@ -136,7 +136,7 @@ def main():
 
   <h2>Source JSON Files</h2>
   <p><strong>Revision / schema version:</strong> {revision_display}</p>
-  <p><strong>Official source (JSON):</strong> <a href="{SOURCE_URL}">ip-ranges.json</a> — Databricks' machine-readable IP ranges. <em>Official docs page: Coming Soon.</em></p>
+  <p><strong>Live:</strong> <a href="{SOURCE_URL}">ip-ranges.json</a> — machine-readable IP ranges (AWS, Azure, GCP). <strong>Docs page:</strong> <em>Coming Soon</em>.</p>
   <p><strong>Latest snapshot on this site:</strong> {latest_json_link}</p>
   <p><strong>Previous JSON versions:</strong> <a href="json-history/">View JSON History</a></p>
 
