@@ -4,6 +4,27 @@ A short runbook for extracting Databricks IP ranges (by cloud, region, and direc
 
 ---
 
+## Inbound vs outbound (CP traffic)
+
+| Type | Meaning | Firewall use |
+|------|---------|--------------|
+| **Inbound** | CP IPs that **receive** your traffic when you call Databricks. | Allowlist as **destination** for your outbound calls to the CP. |
+| **Outbound** | CP **egress** IPs — source when the CP initiates traffic to you or the internet. | Allowlist as **source** so traffic from the CP is allowed. |
+
+```mermaid
+flowchart LR
+  subgraph In["Inbound"]
+    A[Your network] -->|calls to CP| B[Inbound IPs]
+    B --> C[Databricks CP]
+  end
+  subgraph Out["Outbound"]
+    C2[Databricks CP] --> D[Outbound IPs]
+    D -->|CP egress| E[Your env]
+  end
+```
+
+---
+
 ## What you need
 
 - **Python 3.7+** (no extra packages)

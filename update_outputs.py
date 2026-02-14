@@ -53,15 +53,20 @@ def main():
     except Exception:
         pass  # skip history on failure
 
-    # Outputs: per cloud (all types) + per cloud outbound only + all
+    # Outputs: per cloud — all, inbound only, outbound only + combined all
     outputs = [
         ("aws", "all", "aws.txt"),
+        ("aws", "inbound", "aws-inbound.txt"),
         ("aws", "outbound", "aws-outbound.txt"),
         ("azure", "all", "azure.txt"),
+        ("azure", "inbound", "azure-inbound.txt"),
         ("azure", "outbound", "azure-outbound.txt"),
         ("gcp", "all", "gcp.txt"),
+        ("gcp", "inbound", "gcp-inbound.txt"),
         ("gcp", "outbound", "gcp-outbound.txt"),
         ("all", "all", "all.txt"),
+        ("all", "inbound", "all-inbound.txt"),
+        ("all", "outbound", "all-outbound.txt"),
     ]
 
     for cloud, type_filter, filename in outputs:
@@ -140,9 +145,25 @@ def main():
   <p><strong>Latest snapshot on this site:</strong> {latest_json_link}</p>
   <p><strong>Previous JSON versions:</strong> <a href="json-history/">View JSON History</a></p>
 
+  <h2>Inbound vs outbound IPs</h2>
+  <p><strong>Inbound</strong> — CP IPs that <strong>receive</strong> your traffic when you call Databricks. Allowlist as <strong>destination</strong> for your outbound calls to the CP.</p>
+  <p><strong>Outbound</strong> — CP <strong>egress</strong> IPs (source when the CP initiates traffic to you or the internet). Allowlist as <strong>source</strong> so traffic from the CP is allowed.</p>
+  <div style="display:flex;flex-wrap:wrap;gap:24px;margin:16px 0;padding:16px;background:#f6f8fa;border-radius:8px;font-size:14px;">
+    <div style="flex:1;min-width:200px;">
+      <strong>Inbound</strong><br/>
+      <span style="color:#656d76;">Your network</span> → <span style="color:#0969da;">Inbound IPs</span> → <span style="color:#656d76;">Databricks CP</span><br/>
+      <em>Allowlist as destination</em>
+    </div>
+    <div style="flex:1;min-width:200px;">
+      <strong>Outbound</strong><br/>
+      <span style="color:#656d76;">Databricks CP</span> → <span style="color:#0969da;">Outbound IPs</span> → <span style="color:#656d76;">Your env / internet</span><br/>
+      <em>Allowlist as source (egress)</em>
+    </div>
+  </div>
+
   <h2>Palo Alto Networks Ready Files</h2>
   <p>Formatted TXT files for Palo Alto Networks firewalls are available on this page: <a href="output/">output/</a></p>
-  <p>Each file is organized by cloud and type (e.g. <code>aws.txt</code>, <code>azure-outbound.txt</code>, <code>gcp.txt</code>). Download the file you need and import it into your PA firewall configuration.</p>
+  <p>Each file is organized by cloud and type (e.g. <code>aws.txt</code>, <code>aws-inbound.txt</code>, <code>aws-outbound.txt</code>, <code>azure.txt</code>, <code>gcp.txt</code>). Download the file you need and import it into your PA firewall configuration.</p>
 
   <h2>Automation-Friendly Design</h2>
   <p>This page was created to simplify the integration of Databricks IP ranges into firewalls. The project provides a static link to the latest JSON and per-cloud TXT files so you can automate allowlisting without parsing the official API response each time.</p>

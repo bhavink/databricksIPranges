@@ -15,6 +15,38 @@ A Python utility that retrieves, processes, and organizes the official [Databric
 - Maintains a history of JSON files
 - Generates a user-friendly web interface to browse the data
 
+## Inbound vs outbound IPs
+
+| Type | Meaning | Use in firewall |
+|------|---------|-----------------|
+| **Inbound** | IP ranges of the **Databricks control plane (CP)** that **receive** traffic when **you** call Databricks (e.g. from your network to the CP). | Allowlist these as **destination** IPs so your outbound calls **to** Databricks are accepted. |
+| **Outbound** | IP ranges the **Databricks CP** uses as **source** when **it** initiates traffic (egress) — e.g. to your VPC, your services, or the internet. | Allowlist these as **source** IPs so traffic **from** the CP is allowed into your environment. |
+
+```mermaid
+flowchart LR
+  subgraph Inbound[Inbound]
+    direction LR
+    U["Your network / users"]
+    IN["Inbound IPs"]
+    CP1["Databricks CP"]
+    U -->|Your calls to CP| IN
+    IN --> CP1
+  end
+
+  subgraph Outbound[Outbound]
+    direction LR
+    CP2["Databricks CP"]
+    OUT["Outbound IPs"]
+    E["Your env / internet"]
+    CP2 --> OUT
+    OUT -->|CP egress| E
+  end
+```
+
+**Summary:** *Inbound* = CP IPs that receive your traffic → allowlist as **destination**. *Outbound* = CP egress IPs → allowlist as **source**.
+
+---
+
 ## How It Works
 
 1. Downloads the latest JSON from Databricks' official endpoint
