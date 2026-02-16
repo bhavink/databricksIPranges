@@ -79,12 +79,13 @@ def main():
         (OUTPUT_DIR / filename).write_text(out_str.strip() + "\n" if out_str else "")
 
     # Directory index for output/ (like azureIPranges ranges-services-pa)
+    generated_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     txt_files = [fn for (_, _, fn) in outputs]
     output_index_lines = [
         "<!DOCTYPE html>",
         "<html lang=\"en\">",
         "<head><meta charset=\"UTF-8\"><title>Directory Index – Databricks IP Ranges</title>",
-        "<style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;max-width:600px;margin:2em auto;padding:0 20px;} a{color:#0969da;} ul{list-style:none;padding-left:0;} li{margin:6px 0;}</style>",
+        "<style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;max-width:600px;margin:2em auto;padding:0 20px;} a{color:#0969da;} ul{list-style:none;padding-left:0;} li{margin:6px 0;} .meta{color:#656d76;font-size:14px;margin-top:12px;}</style>",
         "</head><body>",
         "<h1>Directory Index</h1>",
         "<p>Click on a file to download:</p>",
@@ -93,6 +94,7 @@ def main():
     for fn in sorted(txt_files):
         output_index_lines.append(f'  <li><a href="{fn}">{fn}</a></li>')
     output_index_lines.append("</ul>")
+    output_index_lines.append(f"<p class=\"meta\">Generated on {generated_utc}</p>")
     output_index_lines.append(f"<p><a href=\"../index.html\">Back to databricksIPranges</a></p>")
     output_index_lines.append("</body></html>")
     (OUTPUT_DIR / "index.html").write_text("\n".join(output_index_lines))
