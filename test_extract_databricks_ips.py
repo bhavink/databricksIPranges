@@ -90,11 +90,11 @@ def test_region_filter():
 
 
 def test_region_filter_no_match():
-    """--region with no match returns empty array."""
+    """--region with unknown name exits non-zero with a clear error message."""
     code, out, err = run(*SOURCE, "--cloud", "aws", "--region", "nonexistent", "--format", "json")
-    assert code == 0, err
-    data = json.loads(out)
-    assert data == []
+    assert code == 1, f"Expected exit 1 for unknown region, got {code}"
+    assert "unknown region" in err.lower() or "nonexistent" in err.lower(), \
+        f"Expected error message about unknown region in stderr, got: {err}"
 
 
 def test_ipv4_only():
@@ -213,13 +213,14 @@ def test_mutually_exclusive_ipv():
 
 
 def test_all_clouds_all_regions():
-    """No cloud/region filter returns all entries (default CSV)."""
-    code, out, err = run(*SOURCE)  # default format is csv
+    """No cloud/region filter returns all entries (default simple: one CIDR per line)."""
+    code, out, err = run(*SOURCE)  # default format is simple
     assert code == 0, err
-    lines = out.strip().split("\n")
-    assert lines[0].lower().startswith("cloud,")
-    # header + data rows (fixture has 6 normalized rows)
+    lines = [l for l in out.strip().split("\n") if l]
+    # fixture has 6 normalized entries (one CIDR per line, no header)
     assert len(lines) >= 6
+    for line in lines:
+        assert "/" in line, f"Expected CIDR, got: {line}"
 
 
 def test_combined_filters():
@@ -267,11 +268,15 @@ def test_file_flag_same_as_source():
     assert set(out1.strip().split()) == set(out2.strip().split())
 
 
-def test_default_format_is_csv():
-    """Default output format is CSV (cloud,region,type,cidr,...)."""
+def test_default_format_is_simple():
+    """Default output format is simple (one CIDR per line, no header)."""
     code, out, err = run(*SOURCE, "--cloud", "aws")
     assert code == 0, err
-    assert out.strip().startswith("cloud,region,type,cidr,")
+    lines = [l for l in out.strip().split("\n") if l]
+    assert len(lines) >= 1
+    for line in lines:
+        assert "/" in line, f"Expected CIDR, got: {line}"
+    assert not lines[0].lower().startswith("cloud,"), "Default should not produce CSV header"
 
 
 def test_multi_region_aws():
@@ -382,7 +387,7 @@ if __name__ == "__main__":
         test_type_filter,
         test_file_flag_local,
         test_file_flag_same_as_source,
-        test_default_format_is_csv,
+        test_default_format_is_simple,
         test_multi_region_aws,
         test_multi_region_azure,
         test_multi_region_gcp,

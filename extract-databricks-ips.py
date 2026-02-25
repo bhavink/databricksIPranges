@@ -361,8 +361,9 @@ Examples:
     parser.add_argument(
         "--file",
         dest="source",
+        default=DEFAULT_URL,
         metavar="URL_OR_PATH",
-        help="URL or path to local IP ranges JSON (online or downloaded file)"
+        help=f"URL or path to local IP ranges JSON (default: {DEFAULT_URL})"
     )
 
     parser.add_argument(
@@ -415,6 +416,23 @@ Examples:
         active_only=args.active_only,
         type_filter=args.type_filter,
     )
+
+    # Validate region: surface a clear error if no results and a specific region was requested
+    if not filtered and regions_parsed != "all":
+        requested = regions_parsed if isinstance(regions_parsed, list) else [args.region]
+        all_region_data = list_regions(data, cloud="all")
+        all_known = {r.lower() for rlist in all_region_data.values() for r in rlist}
+        unknown = [r for r in requested if r.lower() not in all_known]
+        if unknown:
+            print(f"Error: Unknown region(s): {', '.join(unknown)}", file=sys.stderr)
+            cloud_regions = list_regions(data, args.cloud)
+            for cld, rlist in cloud_regions.items():
+                print(f"  Available {cld} regions: {', '.join(rlist)}", file=sys.stderr)
+            print(f"Tip: use --list-regions --cloud {args.cloud} to see all available regions.", file=sys.stderr)
+            sys.exit(1)
+        else:
+            print(f"Warning: No IP ranges matched for region='{args.region}' with the current filters "
+                  f"(cloud={args.cloud}, type={args.type_filter}).", file=sys.stderr)
 
     # Format output
     output = format_output(filtered, data, args.cloud, args.region, args.format)

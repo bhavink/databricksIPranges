@@ -1,6 +1,6 @@
 # How to Get Databricks IP Ranges for Firewall Allowlisting
 
-A short runbook for extracting Databricks IP ranges (by cloud, region, and direction) for use in firewalls and network policies. Uses the [Databricks IP ranges JSON](https://www.databricks.com/networking/v1/ip-ranges.json) *(live)*. Official docs page: *Coming Soon*.
+A short runbook for extracting Databricks IP ranges (by cloud, region, and direction) for use in firewalls and network policies. Uses the [Databricks IP ranges JSON](https://www.databricks.com/networking/v1/ip-ranges.json) *(live)*. Official docs: [AWS](https://docs.databricks.com/aws/en/resources/ip-domain-region) | [Azure](https://learn.microsoft.com/en-us/azure/databricks/resources/ip-domain-region) | [GCP](https://docs.databricks.com/gcp/en/resources/ip-domain-region).
 
 ---
 
@@ -132,4 +132,7 @@ Open `aws-egress.csv`; use the `cidr` column (and optionally `region`) in your f
 ## 7. References
 
 - **Public JSON (source of truth):** `https://www.databricks.com/networking/v1/ip-ranges.json`
+- **Official docs — AWS:** https://docs.databricks.com/aws/en/resources/ip-domain-region
+- **Official docs — Azure:** https://learn.microsoft.com/en-us/azure/databricks/resources/ip-domain-region
+- **Official docs — GCP:** https://docs.databricks.com/gcp/en/resources/ip-domain-region
 - **Script & full docs:** See [README.md](README.md).
