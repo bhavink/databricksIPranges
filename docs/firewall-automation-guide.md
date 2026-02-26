@@ -183,7 +183,6 @@ aws ec2 authorize-security-group-ingress \
 ```python
 # lambda_function.py
 import boto3
-import json
 import os
 import urllib.request
 
@@ -206,6 +205,10 @@ def lambda_handler(event, context):
             for line in resp.read().decode("utf-8").splitlines()
             if line.strip() and not line.startswith("#")
         }
+
+    # Guard: abort if list is suspiciously small — upstream fetch failure protection
+    if len(new_ips) < 50:
+        raise RuntimeError(f"Fetched only {len(new_ips)} IPs — aborting to avoid lockout. Check source URL.")
 
     # 2. Get current entries
     paginator = ec2.get_paginator("get_managed_prefix_list_entries")
@@ -563,7 +566,6 @@ gcloud compute firewall-policies rules create 1000 \
 ```python
 # main.py
 import functions_framework
-import json
 import logging
 import os
 import urllib.request
@@ -800,26 +802,26 @@ flowchart LR
 
 ```hcl
 # variables.tf
-variable "cloud"  { default = "aws" }
-variable "region" { default = "us-east-1" }
+variable "cloud"  { default = "aws" }   # aws | azure | gcp
 
-# data.tf — fetch IPs at plan time using extract-databricks-ips.py
-data "external" "databricks_ips" {
-  program = [
-    "python3", "${path.module}/../../extract-databricks-ips.py",
-    "--cloud", var.cloud,
-    "--region", var.region,
-    "--format", "json"
-  ]
+# data.tf — fetch pre-generated IP list from GitHub Pages at plan time
+# Note: data "external" does NOT work here — it requires a flat JSON object,
+# but the script returns an array. Use data "http" against the .txt file instead.
+data "http" "databricks_ips" {
+  url = "https://bhavink.github.io/databricksIPranges/output/${var.cloud}.txt"
 }
 
 locals {
-  cidr_list = [for e in jsondecode(data.external.databricks_ips.result) : e.cidr]
+  cidr_list = [
+    for line in split("\n", data.http.databricks_ips.response_body) :
+    trimspace(line)
+    if trimspace(line) != "" && !startswith(trimspace(line), "#")
+  ]
 }
 
 # AWS — Managed Prefix List
 resource "aws_ec2_managed_prefix_list" "databricks" {
-  name           = "databricks-${var.cloud}-${var.region}"
+  name           = "databricks-${var.cloud}"
   address_family = "IPv4"
   max_entries    = 200
 
@@ -827,7 +829,7 @@ resource "aws_ec2_managed_prefix_list" "databricks" {
     for_each = toset(local.cidr_list)
     content {
       cidr        = entry.value
-      description = "Databricks ${var.cloud} ${var.region}"
+      description = "Databricks ${var.cloud}"
     }
   }
 }

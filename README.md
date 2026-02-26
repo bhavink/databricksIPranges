@@ -55,7 +55,11 @@ python extract-databricks-ips.py --cloud aws --region us-east-1,eu-west-1 --outp
 
 The script produces output in a format compatible with Palo Alto Networks (PA) devices. Each cloud/type combination is available as a separate TXT file (e.g. `aws-outbound.txt`, `azure.txt`) for easy import into firewall rules or automation.
 
-For full CLI options, mermaid diagrams, and automation examples, see **[RUNBOOK.md](RUNBOOK.md)** or run `python extract-databricks-ips.py --help`.
+For production-grade guidance on automating firewall rule updates across AWS, Azure, GCP, and Palo Alto Networks — including Lambda/Function App code, Managed Prefix Lists, IP Groups, Hierarchical Firewall Policies, EDL configuration, and Terraform patterns — see:
+
+**[→ Firewall Automation Guide](docs/firewall-automation-guide.md)**
+
+For full CLI options, run `python extract-databricks-ips.py --help`.
 
 ## Disclaimer
 
