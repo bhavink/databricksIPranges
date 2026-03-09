@@ -33,7 +33,7 @@ Root keys: `timestampSeconds`, `schemaVersion`, `prefixes[]`. Each entry in `pre
 |---|---|
 | `platform` | `aws` · `azure` · `gcp` |
 | `region` | e.g. `us-east-1`, `eastus`, `europe-west1` |
-| `service` | `Databricks` *(this is the only value — there is no `serverless-egress` or other service)* |
+| `service` | `Databricks` |
 | `type` | `inbound` · `outbound` |
 | `ipv4Prefixes` | array of CIDR strings |
 | `ipv6Prefixes` | array of CIDR strings |
