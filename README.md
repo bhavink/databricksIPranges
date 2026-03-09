@@ -23,6 +23,30 @@ A Python utility that retrieves, processes, and organizes the official [Databric
 4. Maintains a history of JSON snapshots in `docs/json-history/`
 5. Generates an index page and directory listing for easy browsing and automation
 
+## Data Source & Schema
+
+**Official JSON endpoint:** `https://www.databricks.com/networking/v1/ip-ranges.json`
+
+Root keys: `timestampSeconds`, `schemaVersion`, `prefixes[]`. Each entry in `prefixes`:
+
+| Field | Values |
+|---|---|
+| `platform` | `aws` · `azure` · `gcp` |
+| `region` | e.g. `us-east-1`, `eastus`, `europe-west1` |
+| `service` | `Databricks` *(this is the only value — there is no `serverless-egress` or other service)* |
+| `type` | `inbound` · `outbound` |
+| `ipv4Prefixes` | array of CIDR strings |
+| `ipv6Prefixes` | array of CIDR strings |
+
+The script **normalizes** this to a flat one-row-per-CIDR structure. `--format csv` produces:
+
+```
+cloud,region,type,cidr,ipVersion,service
+aws,us-east-1,outbound,52.5.180.253/32,ipv4,Databricks
+```
+
+`--format json` outputs an array of the same flat objects. `--format simple` (default) outputs one CIDR per line.
+
 ## Automated Updates
 
 The repository is updated **weekly** via [GitHub Actions](.github/workflows/update.yml) (Databricks refreshes IP ranges every two weeks). Pre-built TXT files are available in **[output/](https://bhavink.github.io/databricksIPranges/output/)** so you can download or script against them without running the extractor yourself.
@@ -49,7 +73,7 @@ python extract-databricks-ips.py --cloud aws --region us-east-1,eu-west-1 --outp
 1. **Fork the repository** – Recommended so you control when and how you consume updates.
 2. **Regular updates** – Databricks updates the JSON periodically; the weekly Action keeps the site current.
 3. **Verification** – Always verify IP ranges against your requirements before implementation.
-4. **Regions and clouds** – Availability may vary by cloud and region; use `--list-regions` and `--list-services` to discover options.
+4. **Regions and clouds** – Availability may vary by cloud and region; use `--list-regions` to discover available regions. `--list-services` will return `Databricks` — that is the only service value in the data.
 
 ## Implementation Notes
 
