@@ -145,7 +145,7 @@ def main():
 
   <h2>Source JSON Files</h2>
   <p><strong>Revision / schema version:</strong> {revision_display}</p>
-  <p><strong>Live:</strong> <a href="{SOURCE_URL}">ip-ranges.json</a> — machine-readable IP ranges (AWS, Azure, GCP). <strong>Docs page:</strong> <em>Coming Soon</em>.</p>
+  <p><strong>Live:</strong> <a href="{SOURCE_URL}">ip-ranges.json</a> — machine-readable IP ranges (AWS, Azure, GCP). <strong>Docs:</strong> <a href="https://docs.databricks.com/aws/en/resources/ip-domain-region">AWS</a> · <a href="https://learn.microsoft.com/en-us/azure/databricks/resources/ip-domain-region">Azure</a> · <a href="https://docs.databricks.com/gcp/en/resources/ip-domain-region">GCP</a></p>
   <p><strong>Latest snapshot on this site:</strong> {latest_json_link}</p>
   <p><strong>Previous JSON versions:</strong> <a href="json-history/">View JSON History</a></p>
 
