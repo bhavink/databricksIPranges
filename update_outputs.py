@@ -135,11 +135,13 @@ def main():
     a:hover {{ text-decoration: underline; }}
     ul {{ padding-left: 24px; }}
     .meta {{ color: #656d76; font-size: 14px; margin-top: 24px; }}
+    .last-updated {{ display: inline-block; margin: 4px 0 16px; padding: 4px 10px; background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; font-size: 13px; color: #656d76; }}
     .disclaimer {{ margin-top: 32px; padding: 12px; background: #f6f8fa; border-radius: 6px; font-size: 13px; color: #656d76; }}
   </style>
 </head>
 <body>
   <h1>Databricks IP Ranges – AWS, Azure, GCP</h1>
+  <div class="last-updated">🕐 Last updated: {now_utc}</div>
 
   <h2>Source JSON Files</h2>
   <p><strong>Revision / schema version:</strong> {revision_display}</p>
