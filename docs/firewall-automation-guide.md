@@ -294,9 +294,9 @@ aws scheduler create-schedule \
   }'
 ```
 
-### S3 and KMS
+### S3
 
-For S3, **prefer VPC Endpoint Policies over IP-based bucket policies** — they're more maintainable and work regardless of IP changes:
+Serverless compute reaches S3 through a **VPC endpoint** (private network path) — there are no public outbound IPs for S3 traffic, so IP-based bucket policies do not apply. Restrict access using the `aws:VpceOrgPaths` condition key instead:
 
 ```json
 {
@@ -305,17 +305,43 @@ For S3, **prefer VPC Endpoint Policies over IP-based bucket policies** — they'
     "Effect": "Allow",
     "Principal": "*",
     "Action": ["s3:GetObject", "s3:PutObject", "s3:ListBucket"],
-    "Resource": ["arn:aws:s3:::your-databricks-bucket/*"],
+    "Resource": [
+      "arn:aws:s3:::your-databricks-bucket",
+      "arn:aws:s3:::your-databricks-bucket/*"
+    ],
     "Condition": {
-      "StringEquals": {
-        "aws:SourceVpc": "vpc-xxxxxxxx"
+      "ForAnyValue:StringLike": {
+        "aws:VpceOrgPaths": ["o-YOUR_ORG_ID/*/ou-YOUR_OU_PATH/*"]
       }
     }
   }]
 }
 ```
 
-For KMS key policies, same — scope to the IAM role Databricks assumes, not to IPs.
+> **Note:** The `aws:VpceOrgPaths` value is provided by Databricks upon enrollment in the [serverless firewall configuration](https://docs.databricks.com/aws/en/security/network/serverless-network-security/serverless-firewall-config#s3-bucket-access-using-vpce-orgpath) preview. The OrgPath contains only Databricks Serverless VPCs, not all Databricks-managed VPCs.
+
+### KMS
+
+KMS falls under "other resources" — serverless compute reaches KMS via **outbound IP addresses**, not VPCE. Use the IP ranges published by this repo to allowlist Databricks serverless in your KMS key policy:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Principal": {"AWS": "arn:aws:iam::ACCOUNT_ID:role/databricks-cross-account-role"},
+    "Action": ["kms:Encrypt", "kms:Decrypt", "kms:GenerateDataKey*"],
+    "Resource": "*",
+    "Condition": {
+      "IpAddress": {
+        "aws:SourceIp": ["SERVERLESS_OUTBOUND_CIDR_1", "SERVERLESS_OUTBOUND_CIDR_2"]
+      }
+    }
+  }]
+}
+```
+
+> **Note:** Retrieve serverless outbound IPs from the [Databricks-published JSON endpoint](https://docs.databricks.com/aws/en/security/network/serverless-network-security/serverless-firewall-config#outbound-ip-addresses-for-other-resources). Filter for `service: Databricks`, `platform: aws`, `type: outbound`, and match your region. Legacy IP lists are deprecated — migrate by **May 25, 2026**.
 
 ---
 
