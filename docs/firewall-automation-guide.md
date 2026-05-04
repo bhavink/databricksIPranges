@@ -49,14 +49,16 @@ Manual updates don't scale. One missed update = broken jobs at 2am.
 
 Updated weekly by the GitHub Action in this repo. Direct download:
 
-| Cloud | All IPs |
-|-------|---------|
-| AWS   | `https://bhavink.github.io/databricksIPranges/output/aws.txt` |
-| Azure | `https://bhavink.github.io/databricksIPranges/output/azure.txt` |
-| GCP   | `https://bhavink.github.io/databricksIPranges/output/gcp.txt` |
-| All   | `https://bhavink.github.io/databricksIPranges/output/all.txt` |
+| Scope | URL pattern |
+|-------|-------------|
+| All clouds, all IPs | `…/output/all.txt` |
+| Per cloud (all regions) | `…/output/<cloud>.txt` — `aws.txt`, `azure.txt`, `gcp.txt` |
+| Per cloud, by direction | `…/output/<cloud>-<inbound\|outbound>.txt` |
+| **Per region** (recommended) | `…/output/<cloud>-<region>.txt` — e.g. `aws-us-east-1.txt`, `azure-eastus.txt`, `gcp-us-central1.txt` |
 
-One CIDR per line. Drop it straight into a Lambda, Function, or firewall config.
+Base URL: `https://bhavink.github.io/databricksIPranges`. One CIDR per line — drop it straight into a Lambda, Function, EDL, or firewall config.
+
+> Per-region files are emitted only when the region has ≥1 CIDR. Browse [output/](https://bhavink.github.io/databricksIPranges/output/) for the live list, or `--list-regions --cloud <cloud>` via the CLI.
 
 ### Option B — `extract-databricks-ips.py` (programmatic, region-scoped)
 
@@ -190,7 +192,9 @@ import urllib.request
 PREFIX_LIST_ID  = os.environ["PREFIX_LIST_ID"]           # pl-0abc123def456
 DATABRICKS_URL  = os.environ.get(
     "DATABRICKS_IP_URL",
-    "https://bhavink.github.io/databricksIPranges/output/aws.txt"
+    # Use a per-region feed (e.g. aws-us-east-1.txt) for the regions your
+    # workspaces live in. Falls back to all-AWS for a quick start.
+    "https://bhavink.github.io/databricksIPranges/output/aws-us-east-1.txt"
 )
 SNS_TOPIC_ARN   = os.environ.get("SNS_TOPIC_ARN")        # optional
 
@@ -413,6 +417,8 @@ az network firewall policy rule-collection-group collection rule add \
 
 ### Step 3: Function App Sync
 
+> **Region scoping.** Set `DATABRICKS_IP_URL` to a per-region feed (e.g. `output/azure-eastus.txt`) so the IP Group only contains CIDRs for the regions your workspaces live in. The repo publishes one `<cloud>-<region>.txt` per region with ≥1 CIDR. To cover multiple regions, deploy one Function App per region — or extend the function to fetch and union several URLs into a single IP Group.
+
 ```python
 # function_app.py
 import azure.functions as func
@@ -422,6 +428,8 @@ import urllib.request
 
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.network import NetworkManagementClient
+from azure.mgmt.storage import StorageManagementClient
+from azure.mgmt.storage.models import IPRule, NetworkRuleSet, StorageAccountUpdateParameters
 from azure.storage.blob import BlobServiceClient
 
 SUBSCRIPTION_ID    = os.environ["AZURE_SUBSCRIPTION_ID"]
@@ -430,8 +438,16 @@ IP_GROUP_NAME      = os.environ.get("IP_GROUP_NAME", "databricks-ip-ranges")
 STORAGE_CONN_STR   = os.environ.get("BACKUP_STORAGE_CONN_STR")   # optional, for snapshots
 DATABRICKS_IP_URL  = os.environ.get(
     "DATABRICKS_IP_URL",
-    "https://bhavink.github.io/databricksIPranges/output/azure.txt"
+    "https://bhavink.github.io/databricksIPranges/output/azure-eastus.txt"
 )
+# Optional: comma-separated "resource-group/account-name" pairs to keep network
+# rules in sync alongside the IP Group. Leave unset to skip storage-account sync.
+STORAGE_ACCOUNTS   = os.environ.get("STORAGE_ACCOUNTS", "")
+
+# Conservative cap. Azure currently allows up to 400 IP network rules per
+# storage account; abort early if a sync would push past this so we never
+# leave the account in a partially-applied state.
+STORAGE_RULE_CAP   = int(os.environ.get("STORAGE_RULE_CAP", "200"))
 
 app = func.FunctionApp()
 
@@ -447,38 +463,108 @@ def databricks_ip_sync(timer: func.TimerRequest) -> None:
             if line.strip() and not line.startswith("#")
         ]
 
-    # 2. Get current IP Group
+    # Guard: abort if list is suspiciously small — upstream fetch failure protection
+    if len(new_ips) < 5:
+        raise RuntimeError(
+            f"Fetched only {len(new_ips)} IPs — aborting to avoid lockout. "
+            f"Check DATABRICKS_IP_URL ({DATABRICKS_IP_URL})."
+        )
+
     credential = DefaultAzureCredential()
-    client     = NetworkManagementClient(credential, SUBSCRIPTION_ID)
-    ip_group   = client.ip_groups.get(RESOURCE_GROUP, IP_GROUP_NAME)
+
+    # 2. Sync IP Group (Azure Firewall Policy destination)
+    net_client = NetworkManagementClient(credential, SUBSCRIPTION_ID)
+    ip_group   = net_client.ip_groups.get(RESOURCE_GROUP, IP_GROUP_NAME)
     current    = set(ip_group.ip_addresses or [])
 
-    if set(new_ips) == current:
-        logging.info("No IP changes detected. Exiting.")
-        return
+    if set(new_ips) != current:
+        added   = set(new_ips) - current
+        removed = current - set(new_ips)
 
-    added   = set(new_ips) - current
-    removed = current - set(new_ips)
+        # Snapshot current state for rollback (optional but recommended)
+        if STORAGE_CONN_STR:
+            from datetime import datetime, timezone
+            ts          = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M")
+            blob_client = BlobServiceClient.from_connection_string(STORAGE_CONN_STR)
+            container   = blob_client.get_container_client("databricks-ip-snapshots")
+            container.upload_blob(f"azure-{ts}.txt", "\n".join(sorted(current)), overwrite=True)
 
-    # 3. Snapshot current state for rollback (optional but recommended)
-    if STORAGE_CONN_STR:
-        from datetime import datetime, timezone
-        ts          = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M")
-        blob_client = BlobServiceClient.from_connection_string(STORAGE_CONN_STR)
-        container   = blob_client.get_container_client("databricks-ip-snapshots")
-        container.upload_blob(f"azure-{ts}.txt", "\n".join(sorted(current)), overwrite=True)
+        ip_group.ip_addresses = new_ips
+        net_client.ip_groups.begin_create_or_update(
+            RESOURCE_GROUP, IP_GROUP_NAME, ip_group
+        ).result()
 
-    # 4. Update
-    ip_group.ip_addresses = new_ips
-    client.ip_groups.begin_create_or_update(
-        RESOURCE_GROUP, IP_GROUP_NAME, ip_group
-    ).result()
+        logging.info(
+            f"Updated IP Group '{IP_GROUP_NAME}': "
+            f"+{len(added)} added, -{len(removed)} removed, {len(new_ips)} total"
+        )
+    else:
+        logging.info("No IP Group changes detected.")
 
-    logging.info(
-        f"Updated IP Group '{IP_GROUP_NAME}': "
-        f"+{len(added)} added, -{len(removed)} removed, {len(new_ips)} total"
-    )
+    # 3. Optional: sync Storage Account network rules
+    # IP Groups can't be referenced by Storage Account firewalls — they require
+    # explicit IP rules. We diff-apply: add new CIDRs, remove ones no longer
+    # present, leave unrelated rules (e.g. corp egress IPs) untouched.
+    if STORAGE_ACCOUNTS:
+        storage_client = StorageManagementClient(credential, SUBSCRIPTION_ID)
+        new_set = set(new_ips)
+
+        for pair in [p.strip() for p in STORAGE_ACCOUNTS.split(",") if p.strip()]:
+            if "/" not in pair:
+                logging.warning(f"Skipping malformed STORAGE_ACCOUNTS entry: {pair} (expected 'rg/account')")
+                continue
+            sa_rg, sa_name = pair.split("/", 1)
+
+            account = storage_client.storage_accounts.get_properties(sa_rg, sa_name)
+            rule_set = account.network_rule_set
+            existing_rules = list(rule_set.ip_rules or [])
+            existing_ips   = {r.ip_address_or_range for r in existing_rules}
+
+            # Treat any rule in the existing set that came from Databricks as managed,
+            # everything else stays put. Without a tag mechanism on IP rules, we use
+            # set membership against the previously-applied list as the boundary.
+            managed_ips    = existing_ips & current   # rules we're responsible for
+            unmanaged_ips  = existing_ips - current   # leave alone (corp IPs, etc.)
+
+            to_add    = new_set - managed_ips - unmanaged_ips
+            to_remove = managed_ips - new_set
+
+            if not to_add and not to_remove:
+                logging.info(f"Storage account {sa_name}: no rule changes.")
+                continue
+
+            final_count = (len(existing_ips) - len(to_remove)) + len(to_add)
+            if final_count > STORAGE_RULE_CAP:
+                raise RuntimeError(
+                    f"Storage account {sa_name}: would exceed rule cap "
+                    f"({final_count} > {STORAGE_RULE_CAP}). Refusing to apply. "
+                    f"Reduce region scope, raise STORAGE_RULE_CAP, or split across accounts."
+                )
+
+            final_ips    = (existing_ips - to_remove) | to_add
+            updated_rules = [IPRule(ip_address_or_range=ip, action="Allow")
+                             for ip in sorted(final_ips)]
+
+            storage_client.storage_accounts.update(
+                sa_rg, sa_name,
+                StorageAccountUpdateParameters(
+                    network_rule_set=NetworkRuleSet(
+                        bypass=rule_set.bypass,
+                        virtual_network_rules=rule_set.virtual_network_rules,
+                        ip_rules=updated_rules,
+                        default_action=rule_set.default_action,
+                        resource_access_rules=rule_set.resource_access_rules,
+                    )
+                ),
+            )
+
+            logging.info(
+                f"Storage account {sa_name}: +{len(to_add)} added, "
+                f"-{len(to_remove)} removed, {final_count} total rules."
+            )
 ```
+
+> **Storage Account caveats.** Network rules accept public IPv4 only — `/31` and `/32` CIDRs are rejected by the portal but accepted by the SDK as single IPs. RFC1918 ranges are silently ignored. If the Databricks feed contains an IPv6 entry it will fail the API call; filter the feed or strip IPv6 before applying.
 
 ### Step 4: Managed Identity Permissions (least privilege)
 
@@ -493,22 +579,32 @@ az role assignment create \
   --assignee $FUNC_PRINCIPAL_ID \
   --role "Network Contributor" \
   --scope "/subscriptions/$SUB/resourceGroups/rg-network-prod/providers/Microsoft.Network/ipGroups/databricks-ip-ranges"
+
+# Optional — only if STORAGE_ACCOUNTS is set. Storage Account Contributor
+# scoped to each storage account the function manages (one per account).
+az role assignment create \
+  --assignee $FUNC_PRINCIPAL_ID \
+  --role "Storage Account Contributor" \
+  --scope "/subscriptions/$SUB/resourceGroups/rg-data/providers/Microsoft.Storage/storageAccounts/mystorageaccount"
 ```
 
 ### Per-Service Config
 
 **ADLS Gen2 / Storage Account:**
 
+Storage Account network rules **cannot reference an IP Group** — they require explicit IP rules. The Function App in Step 3 handles this when `STORAGE_ACCOUNTS` is set: it diff-applies CIDR changes (add new, remove gone, leave unrelated rules alone) and aborts if the total would exceed `STORAGE_RULE_CAP`.
+
 ```bash
-# Automate with the sync function — add to the function after updating IP Group:
-NEW_IPS=($(python extract-databricks-ips.py --cloud azure --region eastus))
-for cidr in "${NEW_IPS[@]}"; do
-  az storage account network-rule add \
-    --account-name mystorageaccount \
-    --resource-group rg-data \
-    --ip-address "$cidr" 2>/dev/null
-done
+# Configure the Function App to also manage one or more storage accounts:
+az functionapp config appsettings set \
+  --name func-databricks-ipsync \
+  --resource-group rg-functions \
+  --settings \
+    STORAGE_ACCOUNTS="rg-data/mystorageaccount,rg-data/myanalyticsstorage" \
+    STORAGE_RULE_CAP=200
 ```
+
+> Use a per-region feed (e.g. `output/azure-eastus.txt`) for the `DATABRICKS_IP_URL` to keep rule counts well under the cap.
 
 **Azure SQL:**
 
@@ -603,7 +699,8 @@ POLICY_NAME     = os.environ["FIREWALL_POLICY_NAME"]
 RULE_PRIORITY   = int(os.environ.get("RULE_PRIORITY", "1000"))
 DATABRICKS_URL  = os.environ.get(
     "DATABRICKS_IP_URL",
-    "https://bhavink.github.io/databricksIPranges/output/gcp.txt"
+    # Prefer a per-region feed (e.g. gcp-us-central1.txt) for production.
+    "https://bhavink.github.io/databricksIPranges/output/gcp-us-central1.txt"
 )
 
 
@@ -897,15 +994,17 @@ resource "aws_ec2_managed_prefix_list" "databricks" {
 ## Summary
 
 ```
-extract-databricks-ips.py  (or pre-generated .txt files)
+extract-databricks-ips.py  (or pre-generated per-region .txt files)
         │
         ├── AWS ──► Managed Prefix List
         │               └──► Referenced by: RDS SG / Redshift SG / MSK SG / EMR SG
         │               └──► VPC Endpoint Policy: S3, KMS
         │
-        ├── Azure ──► Firewall IP Group
-        │                └──► Referenced by: Azure Firewall Policy rules
-        │                └──► Direct allowlist: ADLS, Key Vault, ACR
+        ├── Azure ──► Firewall IP Group  ─────► Azure Firewall Policy rules
+        │                │
+        │                └──► Direct allowlist (no IP Group support):
+        │                        Storage Account network rules (diff-applied)
+        │                        Key Vault, ACR
         │
         ├── GCP ──► Hierarchical Firewall Policy (Org/Folder)
         │               └──► Propagates to: all VPCs in scope
@@ -917,4 +1016,4 @@ extract-databricks-ips.py  (or pre-generated .txt files)
 ```
 
 Schedule the sync weekly (matching Databricks' ~2 week rotation cadence).
-Scope to your regions. Use managed objects. Guard against empty lists. Alert on failure.
+Scope to your regions (use the `<cloud>-<region>.txt` feeds). Use managed objects where supported, diff-apply where they aren't. Guard against empty lists. Alert on failure.

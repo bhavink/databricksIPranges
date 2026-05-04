@@ -2,6 +2,8 @@
 
 A short runbook for extracting Databricks IP ranges (by cloud, region, and direction) for use in firewalls and network policies. Uses the [Databricks IP ranges JSON](https://www.databricks.com/networking/v1/ip-ranges.json) *(live)*. Official docs: [AWS](https://docs.databricks.com/aws/en/resources/ip-domain-region) | [Azure](https://learn.microsoft.com/en-us/azure/databricks/resources/ip-domain-region) | [GCP](https://docs.databricks.com/gcp/en/resources/ip-domain-region).
 
+> **Don't need the CLI?** Pre-built feeds are published weekly at `https://bhavink.github.io/databricksIPranges/output/`. Use `<cloud>-<region>.txt` (e.g. `aws-us-east-1.txt`, `azure-eastus.txt`) directly in firewall configs, EDLs, or sync functions. See the [Firewall Automation Guide](docs/firewall-automation-guide.md) for end-to-end examples.
+
 
 ## What you need
 

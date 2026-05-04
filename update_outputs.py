@@ -78,9 +78,32 @@ def main():
         )
         (OUTPUT_DIR / filename).write_text(out_str.strip() + "\n" if out_str else "")
 
+    # Per-region feeds: <cloud>-<region>.txt (combined inbound+outbound).
+    # Emit only when the region has ≥1 CIDR after filtering — keeps the index tight
+    # and lets consumers reference the same URL pattern across clouds.
+    region_files = []
+    regions_by_cloud = mod.list_regions(data, cloud="all")
+    for cloud, region_list in regions_by_cloud.items():
+        for region in region_list:
+            if not region:
+                continue
+            filtered = mod.extract_ips(
+                data, cloud=cloud, region=[region], type_filter="all"
+            )
+            if not filtered:
+                continue
+            out_str = mod.format_output(
+                filtered, data, cloud, region, "simple"
+            )
+            if not out_str:
+                continue
+            filename = f"{cloud}-{region}.txt"
+            (OUTPUT_DIR / filename).write_text(out_str.strip() + "\n")
+            region_files.append(filename)
+
     # Directory index for output/ (like azureIPranges ranges-services-pa)
     generated_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-    txt_files = [fn for (_, _, fn) in outputs]
+    txt_files = [fn for (_, _, fn) in outputs] + region_files
     output_index_lines = [
         "<!DOCTYPE html>",
         "<html lang=\"en\">",
@@ -167,7 +190,12 @@ def main():
 
   <h2>Palo Alto Networks Ready Files</h2>
   <p>Formatted TXT files for Palo Alto Networks firewalls are available on this page: <a href="output/">output/</a></p>
-  <p>Each file is organized by cloud and type (e.g. <code>aws.txt</code>, <code>aws-inbound.txt</code>, <code>aws-outbound.txt</code>, <code>azure.txt</code>, <code>gcp.txt</code>). Download the file you need and import it into your PA firewall configuration.</p>
+  <p>Files are organized by:</p>
+  <ul>
+    <li><strong>Cloud + type</strong> — <code>aws.txt</code>, <code>aws-inbound.txt</code>, <code>aws-outbound.txt</code>, <code>azure.txt</code>, <code>gcp.txt</code></li>
+    <li><strong>Cloud + region</strong> — <code>aws-us-east-1.txt</code>, <code>azure-eastus.txt</code>, <code>gcp-us-central1.txt</code> (emitted only when the region has ≥1 CIDR)</li>
+  </ul>
+  <p>Use the per-region files in production to scope firewall rules to your actual workspace regions instead of allowlisting the entire cloud. Download the file you need and import it into your PA firewall configuration, EDL, AWS Managed Prefix List, Azure IP Group, or GCP Firewall Policy.</p>
 
   <h2>Automation-Friendly Design</h2>
   <p>This page was created to simplify the integration of Databricks IP ranges into firewalls. The project provides a static link to the latest JSON and per-cloud TXT files so you can automate allowlisting without parsing the official API response each time.</p>
@@ -180,6 +208,7 @@ def main():
     <li>Fetches the latest Databricks IP ranges JSON (AWS, Azure, GCP)</li>
     <li>Processes and organizes IP ranges by cloud and type (inbound/outbound)</li>
     <li>Generates individual TXT files per cloud/type compatible with PA firewalls (one CIDR per line)</li>
+    <li>Generates per-region TXT files (<code>&lt;cloud&gt;-&lt;region&gt;.txt</code>) so consumers can scope firewall rules to actual workspace regions</li>
     <li>Provides a static JSON link and optional history of JSON snapshots</li>
     <li>Maintains a history of JSON files for reference</li>
   </ul>

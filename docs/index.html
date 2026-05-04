@@ -18,12 +18,12 @@
 </head>
 <body>
   <h1>Databricks IP Ranges – AWS, Azure, GCP</h1>
-  <div class="last-updated">🕐 Last updated: 2026-05-04 03:40:36 UTC</div>
+  <div class="last-updated">🕐 Last updated: 2026-05-04 17:12:00 UTC</div>
 
   <h2>Source JSON Files</h2>
   <p><strong>Revision / schema version:</strong> 1.0</p>
   <p><strong>Live:</strong> <a href="https://www.databricks.com/networking/v1/ip-ranges.json">ip-ranges.json</a> — machine-readable IP ranges (AWS, Azure, GCP). <strong>Docs:</strong> <a href="https://docs.databricks.com/aws/en/resources/ip-domain-region">AWS</a> · <a href="https://learn.microsoft.com/en-us/azure/databricks/resources/ip-domain-region">Azure</a> · <a href="https://docs.databricks.com/gcp/en/resources/ip-domain-region">GCP</a></p>
-  <p><strong>Latest snapshot on this site:</strong> <a href="json-history/ip-ranges-20260504-0340.json">ip-ranges-20260504-0340.json</a></p>
+  <p><strong>Latest snapshot on this site:</strong> <a href="json-history/ip-ranges-20260504-1712.json">ip-ranges-20260504-1712.json</a></p>
   <p><strong>Previous JSON versions:</strong> <a href="json-history/">View JSON History</a></p>
 
   <h2>Inbound vs outbound IPs</h2>
@@ -44,7 +44,12 @@
 
   <h2>Palo Alto Networks Ready Files</h2>
   <p>Formatted TXT files for Palo Alto Networks firewalls are available on this page: <a href="output/">output/</a></p>
-  <p>Each file is organized by cloud and type (e.g. <code>aws.txt</code>, <code>aws-inbound.txt</code>, <code>aws-outbound.txt</code>, <code>azure.txt</code>, <code>gcp.txt</code>). Download the file you need and import it into your PA firewall configuration.</p>
+  <p>Files are organized by:</p>
+  <ul>
+    <li><strong>Cloud + type</strong> — <code>aws.txt</code>, <code>aws-inbound.txt</code>, <code>aws-outbound.txt</code>, <code>azure.txt</code>, <code>gcp.txt</code></li>
+    <li><strong>Cloud + region</strong> — <code>aws-us-east-1.txt</code>, <code>azure-eastus.txt</code>, <code>gcp-us-central1.txt</code> (emitted only when the region has ≥1 CIDR)</li>
+  </ul>
+  <p>Use the per-region files in production to scope firewall rules to your actual workspace regions instead of allowlisting the entire cloud. Download the file you need and import it into your PA firewall configuration, EDL, AWS Managed Prefix List, Azure IP Group, or GCP Firewall Policy.</p>
 
   <h2>Automation-Friendly Design</h2>
   <p>This page was created to simplify the integration of Databricks IP ranges into firewalls. The project provides a static link to the latest JSON and per-cloud TXT files so you can automate allowlisting without parsing the official API response each time.</p>
@@ -57,6 +62,7 @@
     <li>Fetches the latest Databricks IP ranges JSON (AWS, Azure, GCP)</li>
     <li>Processes and organizes IP ranges by cloud and type (inbound/outbound)</li>
     <li>Generates individual TXT files per cloud/type compatible with PA firewalls (one CIDR per line)</li>
+    <li>Generates per-region TXT files (<code>&lt;cloud&gt;-&lt;region&gt;.txt</code>) so consumers can scope firewall rules to actual workspace regions</li>
     <li>Provides a static JSON link and optional history of JSON snapshots</li>
     <li>Maintains a history of JSON files for reference</li>
   </ul>
@@ -65,7 +71,7 @@
   <h2>Contact</h2>
   <p><a href="https://www.linkedin.com/in/bhavink">Connect on LinkedIn</a> · <a href="https://github.com/bhavink/databricksIPranges">Reach on GitHub</a></p>
 
-  <p class="meta">Generated on 2026-05-04 03:40:36 UTC by GitHub Automation</p>
+  <p class="meta">Generated on 2026-05-04 17:12:00 UTC by GitHub Automation</p>
   <div class="disclaimer">This page, its contents, and the associated repository are provided "AS IS" without warranty of any kind. Please refer to the README in the repository for the full disclaimer.</div>
 </body>
 </html>
