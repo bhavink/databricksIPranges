@@ -128,16 +128,21 @@ def main():
         "<!DOCTYPE html>",
         "<html lang=\"en\">",
         "<head><meta charset=\"UTF-8\"><title>JSON History – Databricks IP Ranges</title>",
-        "<style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;max-width:640px;margin:2em auto;padding:0 20px;} a{color:#0969da;} ul{list-style:none;padding-left:0;} li{margin:8px 0;}</style>",
+        "<style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;max-width:640px;margin:2em auto;padding:0 20px;} a{color:#0969da;} ul{list-style:none;padding-left:0;} li{margin:8px 0;} .nav{margin:16px 0 24px;padding:12px 16px;background:#f6f8fa;border:1px solid #d0d7de;border-radius:6px;font-size:14px;} .nav code{background:#fff;padding:1px 4px;border-radius:3px;}</style>",
         "</head><body>",
         "<h1>JSON History</h1>",
         "<p>Snapshot of the official Databricks IP ranges JSON per run. Click to download.</p>",
+        "<div class=\"nav\">",
+        "  <strong>Looking for ready-to-use IP feeds?</strong> The current published feeds — including <strong>per-region</strong> files like <code>aws-us-east-1.txt</code>, <code>azure-eastus.txt</code>, <code>gcp-us-central1.txt</code> — are at <a href=\"../output/\">output/</a>. Use those for live firewall configs.",
+        "  <br/><br/>",
+        "  <em>This page</em> archives the raw <code>ip-ranges.json</code> from each run, useful for point-in-time rollback (e.g. PA EDL) and audit.",
+        "</div>",
         "<ul>",
     ]
     for f in json_files:
         history_index_lines.append(f'  <li><a href="{f.name}">{f.name}</a></li>')
     history_index_lines.append("</ul>")
-    history_index_lines.append("<p><a href=\"../index.html\">Back to databricksIPranges</a></p>")
+    history_index_lines.append("<p><a href=\"../index.html\">Back to databricksIPranges</a> · <a href=\"../output/\">Browse current output/</a></p>")
     history_index_lines.append("</body></html>")
     (JSON_HISTORY_DIR / "index.html").write_text("\n".join(history_index_lines))
 
