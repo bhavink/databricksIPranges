@@ -15,19 +15,49 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.11"
 
       - name: Generate docs
         run: python update_outputs.py
 
+      - name: Verify SHA256SUMS
+        # Sanity-check what we're about to publish — every recorded hash must
+        # match the on-disk file. Catches local corruption before push.
+        run: |
+          cd docs/output
+          sha256sum -c SHA256SUMS
+
       - name: Commit and push docs
+        id: commit
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add docs/
-          git diff --staged --quiet || (git commit -m "chore: update IP ranges and docs [weekly]" && git push)
+          if git diff --staged --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No changes to publish."
+          else
+            git commit -m "chore: update IP ranges and docs [weekly]"
+            git push
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Tag release
+        # Tag every successful publication so consumers can pin a stable ?ref=.
+        # Format: v<YYYY.MM.DD>. If the tag already exists (multiple runs same
+        # day), keep the existing tag — tags are immutable in this repo.
+        if: steps.commit.outputs.changed == 'true'
+        run: |
+          TAG="v$(date -u +%Y.%m.%d)"
+          if git rev-parse "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists — leaving it pointing at the earlier commit."
+          else
+            git tag -a "$TAG" -m "Weekly Databricks IP feed update — $TAG"
+            git push origin "$TAG"
+            echo "Tagged $TAG."
+          fi

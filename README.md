@@ -89,6 +89,10 @@ For Terraform-heavy shops that prefer to wire CIDRs directly into their existing
 
 **[→ Terraform Module](terraform/)**
 
+For the threat model, recommended pinning patterns, and how to verify integrity of the published feeds, see:
+
+**[→ Security Model](SECURITY.md)**
+
 For full CLI options, run `python extract-databricks-ips.py --help`.
 
 ## Disclaimer

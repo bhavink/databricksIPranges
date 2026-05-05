@@ -4,6 +4,7 @@ Generate docs/output/*.txt and docs/index.html for databricksIPranges.
 Run locally or from GitHub Actions. Uses extract-databricks-ips.py (no extra deps).
 """
 
+import hashlib
 import importlib.util
 import json
 from datetime import datetime, timezone
@@ -101,22 +102,37 @@ def main():
             (OUTPUT_DIR / filename).write_text(out_str.strip() + "\n")
             region_files.append(filename)
 
+    # SHA256SUMS — committed alongside the txt files so consumers can verify
+    # integrity at fetch time. GNU sha256sum format ("<hash>  <filename>"),
+    # compatible with `sha256sum -c SHA256SUMS`.
+    txt_files = [fn for (_, _, fn) in outputs] + region_files
+    checksum_lines = []
+    for fn in sorted(txt_files):
+        path = OUTPUT_DIR / fn
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        checksum_lines.append(f"{digest}  {fn}")
+    (OUTPUT_DIR / "SHA256SUMS").write_text("\n".join(checksum_lines) + "\n")
+
     # Directory index for output/ (like azureIPranges ranges-services-pa)
     generated_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-    txt_files = [fn for (_, _, fn) in outputs] + region_files
+    indexed_files = sorted(txt_files) + ["SHA256SUMS"]
     output_index_lines = [
         "<!DOCTYPE html>",
         "<html lang=\"en\">",
         "<head><meta charset=\"UTF-8\"><title>Directory Index – Databricks IP Ranges</title>",
-        "<style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;max-width:600px;margin:2em auto;padding:0 20px;} a{color:#0969da;} ul{list-style:none;padding-left:0;} li{margin:6px 0;} .meta{color:#656d76;font-size:14px;margin-top:12px;}</style>",
+        "<style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;max-width:600px;margin:2em auto;padding:0 20px;} a{color:#0969da;} ul{list-style:none;padding-left:0;} li{margin:6px 0;} .meta{color:#656d76;font-size:14px;margin-top:12px;} .verify{margin:12px 0;padding:10px 12px;background:#f6f8fa;border:1px solid #d0d7de;border-radius:6px;font-size:14px;}</style>",
         "</head><body>",
         "<h1>Directory Index</h1>",
         "<p>Click on a file to download:</p>",
         "<ul>",
     ]
-    for fn in sorted(txt_files):
+    for fn in indexed_files:
         output_index_lines.append(f'  <li><a href="{fn}">{fn}</a></li>')
     output_index_lines.append("</ul>")
+    output_index_lines.append(
+        "<div class=\"verify\"><strong>Verify integrity:</strong> "
+        "<code>curl -sO &lt;url&gt;/SHA256SUMS &amp;&amp; sha256sum -c SHA256SUMS</code></div>"
+    )
     output_index_lines.append(f"<p class=\"meta\">Generated on {generated_utc}</p>")
     output_index_lines.append(f"<p><a href=\"../index.html\">Back to databricksIPranges</a></p>")
     output_index_lines.append("</body></html>")

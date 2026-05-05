@@ -135,5 +135,61 @@ def test_output_index_lists_region_files():
     assert "azure-eastus.txt" in index_html
 
 
+def test_sha256sums_emitted():
+    """SHA256SUMS file must be generated alongside the txt files."""
+    out = _run_main()
+    assert (out / "SHA256SUMS").is_file(), "SHA256SUMS file missing"
+
+
+def test_sha256sums_format_is_gnu():
+    """Every line: <64-hex-digest>SPSP<filename>. Compatible with `sha256sum -c`."""
+    import re
+    out = _run_main()
+    content = (out / "SHA256SUMS").read_text()
+    lines = [line for line in content.splitlines() if line.strip()]
+    assert len(lines) > 0
+    for line in lines:
+        assert re.match(r"^[0-9a-f]{64}  \S+", line), f"Bad SHA256SUMS line: {line!r}"
+
+
+def test_sha256sums_contents_are_correct():
+    """For each line, the recorded digest must match the on-disk file's actual sha256."""
+    import hashlib
+    out = _run_main()
+    content = (out / "SHA256SUMS").read_text()
+    for line in content.splitlines():
+        if not line.strip():
+            continue
+        digest, name = line.split("  ", 1)
+        target = out / name
+        assert target.is_file(), f"SHA256SUMS references missing file: {name}"
+        actual = hashlib.sha256(target.read_bytes()).hexdigest()
+        assert actual == digest, f"Digest mismatch for {name}: recorded={digest}, actual={actual}"
+
+
+def test_sha256sums_does_not_include_self():
+    """SHA256SUMS must not list itself (avoids chicken-and-egg verification)."""
+    out = _run_main()
+    content = (out / "SHA256SUMS").read_text()
+    assert "SHA256SUMS" not in [line.split("  ", 1)[1] for line in content.splitlines() if "  " in line]
+
+
+def test_sha256sums_covers_all_txt_files():
+    """Every .txt file in output/ must have a SHA256SUMS entry."""
+    out = _run_main()
+    txt_files_on_disk = {p.name for p in out.iterdir() if p.suffix == ".txt"}
+    sha_lines = (out / "SHA256SUMS").read_text().splitlines()
+    sha_files = {line.split("  ", 1)[1] for line in sha_lines if "  " in line}
+    missing = txt_files_on_disk - sha_files
+    assert not missing, f"SHA256SUMS missing entries for: {missing}"
+
+
+def test_output_index_links_sha256sums():
+    """The directory index must link to SHA256SUMS so consumers can find it."""
+    out = _run_main()
+    index_html = (out / "index.html").read_text()
+    assert "SHA256SUMS" in index_html
+
+
 if __name__ == "__main__":
     sys.exit(__import__("pytest").main([__file__, "-v"]))
