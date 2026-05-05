@@ -13,6 +13,7 @@ A Python utility that retrieves, processes, and organizes the official [Databric
 - Creates individual text files per cloud and type (e.g. `aws.txt`, `azure-outbound.txt`, `gcp.txt`)
 - **Per-region feeds** at `<cloud>-<region>.txt` (e.g. `aws-us-east-1.txt`, `azure-eastus.txt`) — emitted only when the region has ≥1 CIDR, so consumers can scope firewall rules to their actual workspace regions without parsing JSON
 - Format compatible with **Palo Alto Networks (PA)** devices (one CIDR per line)
+- **Terraform module** at [`terraform/`](terraform/) — exposes the per-region CIDR list as a sorted, deduplicated output you can wire into any TF resource (managed prefix list, IP group, storage account network rules, Cloud SQL authorized networks, etc.). No new compute infrastructure required.
 - Maintains a history of JSON files
 - Generates a user-friendly web interface to browse the data
 
@@ -83,6 +84,10 @@ The script produces output in a format compatible with Palo Alto Networks (PA) d
 For production-grade guidance on automating firewall rule updates across AWS, Azure, GCP, and Palo Alto Networks — including Lambda/Function App code, Managed Prefix Lists, IP Groups, Hierarchical Firewall Policies, EDL configuration, and Terraform patterns — see:
 
 **[→ Firewall Automation Guide](docs/firewall-automation-guide.md)**
+
+For Terraform-heavy shops that prefer to wire CIDRs directly into their existing IaC (no Lambda/Function App needed), see:
+
+**[→ Terraform Module](terraform/)**
 
 For full CLI options, run `python extract-databricks-ips.py --help`.
 
