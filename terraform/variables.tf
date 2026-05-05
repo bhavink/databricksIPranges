@@ -46,3 +46,9 @@ variable "min_cidr_count" {
     error_message = "min_cidr_count must be >= 0."
   }
 }
+
+variable "verify_checksums" {
+  type        = bool
+  description = "When fetching feeds via source_base_url, also fetch SHA256SUMS and verify each feed's sha256 against it. Defense-in-depth against single-file tampering between commits. No-op in local source_files mode (the customer controls those files)."
+  default     = true
+}
