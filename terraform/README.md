@@ -146,6 +146,8 @@ A periodic job in your repo (e.g. Renovate, a scheduled GH Action) updates the v
 
 **Why pin:** Without it, every `terraform plan` re-resolves `main` and could surface CIDR diffs you haven't reviewed. Pinning makes the bump an explicit PR in your repo.
 
+For the full threat model and recommended patterns by paranoia level (default → strict → airgapped/vendored), see [SECURITY.md](../SECURITY.md).
+
 ---
 
 ## Debugging
