@@ -221,6 +221,93 @@ Parsing tests use local fixtures; checksum tests use `mock_provider` `override_d
 
 ---
 
+## Validating locally
+
+Three layers — pick what you need. All three exiting `0` proves the entire chain (publish → fetch → verify → parse → emit) works end-to-end.
+
+### 1. Run the test suite (no network)
+
+```bash
+cd terraform
+terraform fmt -check -recursive
+terraform init -backend=false
+terraform validate
+terraform test
+# Expect: Success! 15 passed, 0 failed.
+```
+
+> Requires Terraform `>= 1.6` (for the `test` framework). On Homebrew macOS, `homebrew/core` only ships 1.5.7 — switch to `hashicorp/tap/terraform`, install `opentofu` (drop-in, Apache-2.0), or grab a binary directly from `releases.hashicorp.com`.
+
+### 2. Manual integrity check against the live URL
+
+Verifies the published `SHA256SUMS` matches the published feeds — independent of the TF module:
+
+```bash
+mkdir -p /tmp/dbx-verify && cd /tmp/dbx-verify
+curl -sO https://bhavink.github.io/databricksIPranges/output/SHA256SUMS
+curl -sO https://bhavink.github.io/databricksIPranges/output/azure-eastus.txt
+curl -sO https://bhavink.github.io/databricksIPranges/output/aws-us-east-1.txt
+shasum -a 256 -c SHA256SUMS --ignore-missing
+# Expect: azure-eastus.txt: OK
+#         aws-us-east-1.txt: OK
+```
+
+### 3. End-to-end smoke test — real `terraform plan` against the live URL
+
+Exercises the full module flow (fetch SHA256SUMS → fetch feed → verify hash → parse → emit). Use this when adopting the module to confirm your environment can reach the source and verify integrity.
+
+```bash
+mkdir -p /tmp/dbx-smoke && cat > /tmp/dbx-smoke/main.tf <<'EOF'
+terraform {
+  required_version = ">= 1.6"
+}
+
+module "dbx_ips" {
+  source  = "github.com/bhavink/databricksIPranges//terraform?ref=main"
+  cloud   = "azure"
+  regions = ["eastus"]
+  # verify_checksums defaults to true — exercises the full path
+}
+
+output "cidr_count"        { value = module.dbx_ips.cidr_count }
+output "first_three_cidrs" { value = slice(module.dbx_ips.cidrs, 0, 3) }
+output "source"            { value = module.dbx_ips.source }
+EOF
+
+terraform -chdir=/tmp/dbx-smoke init
+terraform -chdir=/tmp/dbx-smoke plan
+```
+
+A successful plan output looks like:
+
+```
+module.dbx_ips.data.http.checksums[0]: Read complete after 0s [id=...SHA256SUMS]
+module.dbx_ips.data.http.feed["azure-eastus.txt"]: Read complete after 0s [id=...azure-eastus.txt]
+
+Changes to Outputs:
+  + cidr_count        = 144
+  + first_three_cidrs = [
+      + "128.203.118.160/28",
+      + "128.203.119.128/25",
+      + "128.203.119.16/28",
+    ]
+  + source            = ["https://bhavink.github.io/databricksIPranges/output/azure-eastus.txt"]
+```
+
+If you see this, every postcondition passed: HTTP 200 + hash matches manifest + every line is a valid CIDR + `cidr_count >= min_cidr_count`. The chain is sound.
+
+### Bonus — prove tamper detection trips
+
+To watch the fail-closed behaviour fire, point the module at a source that doesn't publish a CIDR feed:
+
+```bash
+sed -i '' 's|github.com/bhavink/databricksIPranges//terraform?ref=main|github.com/bhavink/databricksIPranges//terraform?ref=main"\n  source_base_url = "https://example.com|' /tmp/dbx-smoke/main.tf
+terraform -chdir=/tmp/dbx-smoke plan
+# Expect: clean failure with "Failed to fetch SHA256SUMS at https://example.com/SHA256SUMS — HTTP 404"
+```
+
+---
+
 ## What this module deliberately does NOT do
 
 - **Write target resources for you.** You write `aws_ec2_managed_prefix_list`, `azurerm_storage_account_network_rules`, etc. — that's where provider-specific limits and quirks live (rule caps, IPv4-only constraints, naming rules). Examples above show the patterns.
