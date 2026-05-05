@@ -1,0 +1,4 @@
+<html>
+<head><title>404 Not Found</title></head>
+<body>not a cidr feed</body>
+</html>

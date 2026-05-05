@@ -1,0 +1,8 @@
+# Comment lines should be stripped
+3.237.73.224/28
+
+# Blank line above and below
+
+44.215.162.0/24
+   # leading whitespace on a comment is also stripped
+   54.156.226.103/32

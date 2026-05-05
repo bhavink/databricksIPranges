@@ -905,60 +905,44 @@ Reference `databricks-aws-ips` (or the relevant EDL) as the **Source** in your S
 
 ## GitOps / Terraform
 
-For teams that require **PR-based approval** before production rule changes, or multi-cloud consistency from a single pipeline.
+For teams that require **PR-based approval** before production rule changes, or multi-cloud consistency from a single pipeline. Use the published Terraform module — it owns the CIDR sourcing (per-region scoping, dedup, validation, fail-closed guards); you write the target resources in your own repo with whatever provider versions you already use.
 
 ```mermaid
 flowchart LR
-    A["databricksIPranges repo\nWeekly GitHub Action\nupdates output files"] -->|webhook or scheduled poll| B["IaC Repo\nterraform/"]
-    B --> C["PR auto-created\nShows exact CIDR diff"]
+    A["databricksIPranges repo\nWeekly GitHub Action\nupdates per-region feeds"] -->|module reads via tag pin| B["Your IaC Repo\nterraform/"]
+    B --> C["PR shows exact CIDR diff\non bump of ?ref="]
     C --> D{"Environment?"}
     D -- dev/staging --> E["Auto-merge\nterraform apply"]
     D -- prod --> F["Security team\napproves PR"]
     F --> G["terraform apply\nProd"]
     E --> H["AWS\nManaged Prefix List"]
     G --> H
-    E --> I["Azure\nIP Group"]
+    E --> I["Azure\nIP Group + Storage Account"]
     G --> I
-    E --> J["GCP\nFirewall Policy"]
+    E --> J["GCP\nFirewall Policy + Cloud SQL"]
     G --> J
 ```
 
 ```hcl
-# variables.tf
-variable "cloud"  { default = "aws" }   # aws | azure | gcp
-
-# data.tf — fetch pre-generated IP list from GitHub Pages at plan time
-# Note: data "external" does NOT work here — it requires a flat JSON object,
-# but the script returns an array. Use data "http" against the .txt file instead.
-data "http" "databricks_ips" {
-  url = "https://bhavink.github.io/databricksIPranges/output/${var.cloud}.txt"
+module "dbx_ips" {
+  source  = "github.com/bhavink/databricksIPranges//terraform?ref=main" # pin to a tag in production
+  cloud   = "aws"
+  regions = ["us-east-1"]
 }
 
-locals {
-  cidr_list = [
-    for line in split("\n", data.http.databricks_ips.response_body) :
-    trimspace(line)
-    if trimspace(line) != "" && !startswith(trimspace(line), "#")
-  ]
-}
-
-# AWS — Managed Prefix List
 resource "aws_ec2_managed_prefix_list" "databricks" {
-  name           = "databricks-${var.cloud}"
+  name           = "databricks-aws-us-east-1"
   address_family = "IPv4"
   max_entries    = 200
 
   dynamic "entry" {
-    for_each = toset(local.cidr_list)
-    content {
-      cidr        = entry.value
-      description = "Databricks ${var.cloud}"
-    }
+    for_each = toset(module.dbx_ips.cidrs)
+    content { cidr = entry.value }
   }
 }
 ```
 
-> Running `terraform plan` on a PR shows exactly which CIDRs were added or removed — reviewable, auditable, rollback = `git revert` + re-apply.
+> Running `terraform plan` on a PR shows exactly which CIDRs were added or removed — reviewable, auditable, rollback = `git revert` + re-apply. Module fails closed on empty/corrupted feeds (won't silently clear your rules). Full inputs/outputs, per-cloud examples, and debugging are in [terraform/README.md](../terraform/README.md).
 
 ---
 

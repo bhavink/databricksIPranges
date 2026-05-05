@@ -52,6 +52,15 @@ coverage.xml
 *.tmp
 .cache/
 
+# Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+
 # md files
 GITHUB-PAGES-SETUP.md
 gh-commands.md
