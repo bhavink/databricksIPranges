@@ -49,6 +49,7 @@ This repo applies these by default:
 | Defense | What it does |
 |---|---|
 | `SHA256SUMS` published with every release | Every `output/*.txt` file's hash is committed alongside the file. Consumers can verify before applying. |
+| TF module verifies hashes by default | `verify_checksums = true` (default). Module fetches `SHA256SUMS` at plan time and fails the apply on any hash mismatch. Defense-in-depth against single-file tampering between commits. |
 | Weekly tagging (`v<YYYY.MM.DD>`) | Each publication gets an immutable tag. Pin to the tag. |
 | GitHub Actions deps pinned by SHA | All third-party actions use commit SHA pins (not floating tags), preventing transitive action supply-chain attacks. |
 | `permissions: contents: write` only | The weekly workflow has the minimum permissions needed; no secrets, no tokens beyond GITHUB_TOKEN. |
@@ -68,7 +69,7 @@ This neutralizes most attacks because tampering between publications doesn't rea
 ### Stricter (regulated / high-stakes)
 
 - Pin `?ref=<sha>` to a specific commit SHA
-- Verify `SHA256SUMS` at fetch time (planned in PR 4 — TF module hash verification)
+- Keep `verify_checksums = true` in the Terraform module (default) — fetches `SHA256SUMS` at plan time, fails the apply on hash mismatch
 - Bump the SHA via a dedicated review PR with explicit security-team approval
 
 ### Most paranoid (airgapped / nation-state threat model)
@@ -133,6 +134,6 @@ If you find a tampering pattern, a vulnerability in the publication pipeline, or
 
 ## Future work
 
-- **PR 4 (planned):** TF module hash verification — fetch `SHA256SUMS` at plan time, compare against the hash of each fetched feed, fail the plan on mismatch. Defense-in-depth against single-file tampering between publications.
 - **Optional:** SLSA provenance attestation via GitHub OIDC + Sigstore. Adds verifiable "this artifact was built from this workflow run on this commit." Not needed for v1.
 - **Optional:** Independent watchdog repo on a separate identity that publishes the same files via the same logic. Defeats single-account compromise. Real defense, not yet implemented.
+- **Optional:** `validate_against_upstream` mode for the TF module — at plan time, fetch the live Databricks JSON directly and cross-check our published feed against it. Catches our-feed tampering but adds runtime dependency on Databricks.

@@ -36,6 +36,7 @@ resource "azurerm_storage_account_network_rules" "data" {
 | `source_base_url` | string | `https://bhavink.github.io/databricksIPranges/output` | Base URL serving the per-region `.txt` feeds. Override for forks or self-hosted mirrors |
 | `source_files` | list(string) | `[]` | Local CIDR-per-line file paths. Non-empty = airgapped/vendored mode (no network) |
 | `min_cidr_count` | number | `1` | Refuse to apply below this. Guards against feed-empty lockouts. Set `0` to disable |
+| `verify_checksums` | bool | `true` | Fetch `SHA256SUMS` from `source_base_url` and verify each feed's hash against it. No-op in `source_files` mode |
 
 ## Outputs
 
@@ -169,6 +170,8 @@ terraform output cidrs | head     # spot-check first few
 | `Feed contained non-CIDR lines` | URL serves HTML/JSON, not text | Verify `source_base_url` points at the `output/` directory, not the JSON endpoint |
 | `cloud must be one of: aws, azure, gcp` | Typo on `cloud` input | Use lowercase, exact match |
 | `regions must contain only lowercase letters, digits, and hyphens` | Region has spaces, uppercase, or other chars | Use the exact region name from `<source_base_url>/` |
+| `SHA256 mismatch for ...` | Feed body's hash doesn't match `SHA256SUMS` entry. Possible tampering, possible stale manifest | Compare hashes manually (see [SECURITY.md](../SECURITY.md)). If your fork doesn't publish `SHA256SUMS`, set `verify_checksums = false` |
+| `Failed to fetch SHA256SUMS at ...` | URL returns non-200 — fork without manifest, or temporarily down | Set `verify_checksums = false` if your source intentionally doesn't publish one |
 
 ### Deeper diagnostics
 
@@ -196,19 +199,25 @@ CI runs the same on every PR touching `terraform/` — see `.github/workflows/te
 
 Coverage:
 
-| Behaviour | Test |
-|---|---|
-| Single-file happy path | `happy_path_single_file` |
-| Multi-file union | `multi_file_union` |
-| Comment + blank line stripping | `strips_comments_and_blanks` |
-| Deduplication | `deduplicates` |
-| Cloud input validation | `rejects_invalid_cloud` |
-| Region format validation | `rejects_invalid_region_format` |
-| Lockout guard (`min_cidr_count`) | `rejects_below_min_cidr_count` |
-| Lockout guard disabled | `min_cidr_count_zero_allows_empty` |
-| Non-CIDR content detection | `rejects_non_cidr_content` |
+| Behaviour | Test file | Test |
+|---|---|---|
+| Single-file happy path | `module.tftest.hcl` | `happy_path_single_file` |
+| Multi-file union | `module.tftest.hcl` | `multi_file_union` |
+| Comment + blank line stripping | `module.tftest.hcl` | `strips_comments_and_blanks` |
+| Deduplication | `module.tftest.hcl` | `deduplicates` |
+| Cloud input validation | `module.tftest.hcl` | `rejects_invalid_cloud` |
+| Region format validation | `module.tftest.hcl` | `rejects_invalid_region_format` |
+| Lockout guard (`min_cidr_count`) | `module.tftest.hcl` | `rejects_below_min_cidr_count` |
+| Lockout guard disabled | `module.tftest.hcl` | `min_cidr_count_zero_allows_empty` |
+| Non-CIDR content detection | `module.tftest.hcl` | `rejects_non_cidr_content` |
+| Hash matches → pass | `checksums.tftest.hcl` | `verify_passes_when_hash_matches` |
+| Hash mismatch → fail | `checksums.tftest.hcl` | `verify_fails_on_hash_mismatch` |
+| File not in manifest → fail | `checksums.tftest.hcl` | `verify_fails_when_file_missing_from_manifest` |
+| `verify_checksums = false` skips fetch | `checksums.tftest.hcl` | `verify_disabled_skips_fetch` |
+| Local mode silently skips verify | `checksums.tftest.hcl` | `verify_silently_skipped_in_local_mode` |
+| Manifest with blanks/comments tolerated | `checksums.tftest.hcl` | `manifest_with_blank_and_comment_lines_is_tolerated` |
 
-Tests use `source_files` against committed fixtures — no network required, runs in seconds.
+Parsing tests use local fixtures; checksum tests use `mock_provider` `override_data` — no network required either way, full suite runs in seconds.
 
 ---
 
