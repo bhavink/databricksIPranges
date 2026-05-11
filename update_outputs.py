@@ -79,28 +79,33 @@ def main():
         )
         (OUTPUT_DIR / filename).write_text(out_str.strip() + "\n" if out_str else "")
 
-    # Per-region feeds: <cloud>-<region>.txt (combined inbound+outbound).
-    # Emit only when the region has ≥1 CIDR after filtering — keeps the index tight
-    # and lets consumers reference the same URL pattern across clouds.
+    # Per-region feeds: <cloud>-<region>.txt (combined inbound+outbound) plus
+    # direction-scoped variants <cloud>-<region>-inbound.txt and
+    # <cloud>-<region>-outbound.txt. The direction-scoped feeds let consumers
+    # scope rule sets that can only hold one direction (e.g. Azure Storage
+    # Account network rules — outbound only; AWS KMS key policies — outbound).
+    # All three are emitted only when ≥1 CIDR exists for that slice, keeping
+    # the index tight and the URL pattern consistent across clouds.
     region_files = []
     regions_by_cloud = mod.list_regions(data, cloud="all")
     for cloud, region_list in regions_by_cloud.items():
         for region in region_list:
             if not region:
                 continue
-            filtered = mod.extract_ips(
-                data, cloud=cloud, region=[region], type_filter="all"
-            )
-            if not filtered:
-                continue
-            out_str = mod.format_output(
-                filtered, data, cloud, region, "simple"
-            )
-            if not out_str:
-                continue
-            filename = f"{cloud}-{region}.txt"
-            (OUTPUT_DIR / filename).write_text(out_str.strip() + "\n")
-            region_files.append(filename)
+            for type_filter, suffix in (("all", ""), ("inbound", "-inbound"), ("outbound", "-outbound")):
+                filtered = mod.extract_ips(
+                    data, cloud=cloud, region=[region], type_filter=type_filter
+                )
+                if not filtered:
+                    continue
+                out_str = mod.format_output(
+                    filtered, data, cloud, region, "simple"
+                )
+                if not out_str:
+                    continue
+                filename = f"{cloud}-{region}{suffix}.txt"
+                (OUTPUT_DIR / filename).write_text(out_str.strip() + "\n")
+                region_files.append(filename)
 
     # SHA256SUMS — committed alongside the txt files so consumers can verify
     # integrity at fetch time. GNU sha256sum format ("<hash>  <filename>"),
@@ -149,7 +154,7 @@ def main():
         "<h1>JSON History</h1>",
         "<p>Snapshot of the official Databricks IP ranges JSON per run. Click to download.</p>",
         "<div class=\"nav\">",
-        "  <strong>Looking for ready-to-use IP feeds?</strong> The current published feeds — including <strong>per-region</strong> files like <code>aws-us-east-1.txt</code>, <code>azure-eastus.txt</code>, <code>gcp-us-central1.txt</code> — are at <a href=\"../output/\">output/</a>. Use those for live firewall configs.",
+        "  <strong>Looking for ready-to-use IP feeds?</strong> The current published feeds — including <strong>per-region</strong> files like <code>aws-us-east-1.txt</code>, <code>azure-eastus.txt</code>, <code>gcp-us-central1.txt</code>, and <strong>per-region + direction</strong> variants like <code>aws-us-east-1-outbound.txt</code> — are at <a href=\"../output/\">output/</a>. Use those for live firewall configs.",
         "  <br/><br/>",
         "  <em>This page</em> archives the raw <code>ip-ranges.json</code> from each run, useful for point-in-time rollback (e.g. PA EDL) and audit.",
         "</div>",
@@ -215,8 +220,9 @@ def main():
   <ul>
     <li><strong>Cloud + type</strong> — <code>aws.txt</code>, <code>aws-inbound.txt</code>, <code>aws-outbound.txt</code>, <code>azure.txt</code>, <code>gcp.txt</code></li>
     <li><strong>Cloud + region</strong> — <code>aws-us-east-1.txt</code>, <code>azure-eastus.txt</code>, <code>gcp-us-central1.txt</code> (emitted only when the region has ≥1 CIDR)</li>
+    <li><strong>Cloud + region + direction</strong> — <code>aws-us-east-1-outbound.txt</code>, <code>azure-eastus-inbound.txt</code>, <code>gcp-us-central1-outbound.txt</code> (emitted only when that region+direction has ≥1 CIDR)</li>
   </ul>
-  <p>Use the per-region files in production to scope firewall rules to your actual workspace regions instead of allowlisting the entire cloud. Download the file you need and import it into your PA firewall configuration, EDL, AWS Managed Prefix List, Azure IP Group, or GCP Firewall Policy.</p>
+  <p>Use the per-region files in production to scope firewall rules to your actual workspace regions instead of allowlisting the entire cloud. The direction-scoped per-region files are the right fit when the target only accepts one direction — e.g. <strong>Azure Storage Account network rules</strong> (outbound CP IPs) or <strong>AWS KMS key policies</strong> (outbound CP IPs). Download the file you need and import it into your PA firewall configuration, EDL, AWS Managed Prefix List, Azure IP Group, or GCP Firewall Policy.</p>
 
   <h2>Automation-Friendly Design</h2>
   <p>This page was created to simplify the integration of Databricks IP ranges into firewalls. The project provides a static link to the latest JSON and per-cloud TXT files so you can automate allowlisting without parsing the official API response each time.</p>

@@ -12,6 +12,7 @@ A Python utility that retrieves, processes, and organizes the official [Databric
 - Processes and organizes IP ranges by **cloud** (AWS, Azure, GCP) and **type** (inbound / outbound)
 - Creates individual text files per cloud and type (e.g. `aws.txt`, `azure-outbound.txt`, `gcp.txt`)
 - **Per-region feeds** at `<cloud>-<region>.txt` (e.g. `aws-us-east-1.txt`, `azure-eastus.txt`) — emitted only when the region has ≥1 CIDR, so consumers can scope firewall rules to their actual workspace regions without parsing JSON
+- **Per-region + direction feeds** at `<cloud>-<region>-<inbound|outbound>.txt` (e.g. `aws-us-east-1-outbound.txt`, `azure-eastus-outbound.txt`) — emitted only when that region+direction has ≥1 CIDR, ideal for targets that accept only one direction (Azure Storage Account network rules, AWS KMS key policies)
 - Format compatible with **Palo Alto Networks (PA)** devices (one CIDR per line)
 - **Terraform module** at [`terraform/`](terraform/) — exposes the per-region CIDR list as a sorted, deduplicated output you can wire into any TF resource (managed prefix list, IP group, storage account network rules, Cloud SQL authorized networks, etc.). No new compute infrastructure required.
 - Maintains a history of JSON files
@@ -79,7 +80,7 @@ python extract-databricks-ips.py --cloud aws --region us-east-1,eu-west-1 --outp
 
 ## Implementation Notes
 
-The script produces output in a format compatible with Palo Alto Networks (PA) devices. Each cloud/type combination is available as a separate TXT file (e.g. `aws-outbound.txt`, `azure.txt`) for easy import into firewall rules or automation. Per-region feeds (`<cloud>-<region>.txt`) let consumers scope to their actual workspace regions — recommended in production to avoid allowlisting the entire cloud.
+The script produces output in a format compatible with Palo Alto Networks (PA) devices. Each cloud/type combination is available as a separate TXT file (e.g. `aws-outbound.txt`, `azure.txt`) for easy import into firewall rules or automation. Per-region feeds (`<cloud>-<region>.txt`) let consumers scope to their actual workspace regions — recommended in production to avoid allowlisting the entire cloud. Per-region + direction feeds (`<cloud>-<region>-<inbound|outbound>.txt`) further narrow the rule set for targets that only accept one direction (e.g. Azure Storage Account network rules, AWS KMS key policies).
 
 For production-grade guidance on automating firewall rule updates across AWS, Azure, GCP, and Palo Alto Networks — including Lambda/Function App code, Managed Prefix Lists, IP Groups, Hierarchical Firewall Policies, EDL configuration, and Terraform patterns — see:
 

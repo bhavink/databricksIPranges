@@ -312,7 +312,7 @@ terraform -chdir=/tmp/dbx-smoke plan
 
 - **Write target resources for you.** You write `aws_ec2_managed_prefix_list`, `azurerm_storage_account_network_rules`, etc. — that's where provider-specific limits and quirks live (rule caps, IPv4-only constraints, naming rules). Examples above show the patterns.
 - **Validate cloud-provider caps** (AWS prefix list 200 entries, Azure storage account 400 IPs, etc.). Your resource block is the right place to fail on those.
-- **Filter inbound vs outbound.** The published feeds already combine both. Use `source_files` against `<cloud>-<region>-inbound.txt` / `-outbound.txt` from your own fork if you need split feeds.
+- **Filter inbound vs outbound at module level.** The module fetches whatever filename it builds from `cloud` + `regions`. If you only want one direction, point at the published direction-scoped feed by setting `source_files` (airgapped/vendored) or by pre-mirroring `<cloud>-<region>-<inbound|outbound>.txt` and overriding `source_base_url`. A first-class `direction` input may land later; flag the use case on the issue tracker.
 - **Refresh CIDRs automatically.** Pin a ref. Bump it via PR when you want to update.
 
 ---
