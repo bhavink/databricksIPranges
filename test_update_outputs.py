@@ -118,6 +118,61 @@ def test_per_region_includes_inbound_and_outbound():
     assert {"3.237.73.224/28", "44.215.162.0/24"} <= aws_us_east_1
 
 
+def test_per_region_direction_files_emitted_when_cidrs_exist():
+    """For a region that has both inbound and outbound CIDRs, both direction-scoped
+    files must be emitted alongside the combined one."""
+    out = _run_main()
+    files = {p.name for p in out.iterdir() if p.suffix == ".txt"}
+    assert "aws-us-east-1-inbound.txt" in files
+    assert "aws-us-east-1-outbound.txt" in files
+
+
+def test_per_region_inbound_contains_only_inbound_cidrs():
+    out = _run_main()
+    inbound = set((out / "aws-us-east-1-inbound.txt").read_text().strip().splitlines())
+    # Fixture us-east-1 inbound: 3.237.73.224/28; outbound: 44.215.162.0/24
+    assert "3.237.73.224/28" in inbound
+    assert "44.215.162.0/24" not in inbound
+
+
+def test_per_region_outbound_contains_only_outbound_cidrs():
+    out = _run_main()
+    outbound = set((out / "aws-us-east-1-outbound.txt").read_text().strip().splitlines())
+    assert "44.215.162.0/24" in outbound
+    assert "3.237.73.224/28" not in outbound
+
+
+def test_per_region_direction_skipped_when_no_cidrs():
+    """us-west-2 fixture only has outbound — the -inbound.txt must NOT be emitted.
+    Same ≥1-CIDR guard as the combined per-region file."""
+    out = _run_main()
+    files = {p.name for p in out.iterdir()}
+    assert "aws-us-west-2-outbound.txt" in files  # has outbound CIDR
+    assert "aws-us-west-2-inbound.txt" not in files  # has no inbound CIDR
+    # ghost-region has neither direction with content — none of the three variants exist
+    assert "aws-ghost-region.txt" not in files
+    assert "aws-ghost-region-inbound.txt" not in files
+    assert "aws-ghost-region-outbound.txt" not in files
+
+
+def test_per_region_direction_files_covered_by_sha256sums():
+    """Defense-in-depth: the new direction-scoped files must be in SHA256SUMS so
+    consumers fetching them can verify integrity."""
+    out = _run_main()
+    sha_lines = (out / "SHA256SUMS").read_text().splitlines()
+    sha_files = {line.split("  ", 1)[1] for line in sha_lines if "  " in line}
+    assert "aws-us-east-1-inbound.txt" in sha_files
+    assert "aws-us-east-1-outbound.txt" in sha_files
+
+
+def test_output_index_lists_region_direction_files():
+    """The generated output/index.html must include per-region+direction files
+    so they're discoverable from the browser."""
+    out = _run_main()
+    index_html = (out / "index.html").read_text()
+    assert "aws-us-east-1-outbound.txt" in index_html
+
+
 def test_per_cloud_files_still_emitted():
     """Regression guard: the original per-cloud feeds must keep working."""
     out = _run_main()

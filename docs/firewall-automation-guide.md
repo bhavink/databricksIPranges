@@ -55,10 +55,13 @@ Updated weekly by the GitHub Action in this repo. Direct download:
 | Per cloud (all regions) | `…/output/<cloud>.txt` — `aws.txt`, `azure.txt`, `gcp.txt` |
 | Per cloud, by direction | `…/output/<cloud>-<inbound\|outbound>.txt` |
 | **Per region** (recommended) | `…/output/<cloud>-<region>.txt` — e.g. `aws-us-east-1.txt`, `azure-eastus.txt`, `gcp-us-central1.txt` |
+| **Per region + direction** (tightest scope) | `…/output/<cloud>-<region>-<inbound\|outbound>.txt` — e.g. `aws-us-east-1-outbound.txt`, `azure-eastus-outbound.txt`, `gcp-us-central1-outbound.txt` |
 
 Base URL: `https://bhavink.github.io/databricksIPranges`. One CIDR per line — drop it straight into a Lambda, Function, EDL, or firewall config.
 
-> Per-region files are emitted only when the region has ≥1 CIDR. Browse [output/](https://bhavink.github.io/databricksIPranges/output/) for the live list, or `--list-regions --cloud <cloud>` via the CLI.
+> Per-region and per-region+direction files are emitted only when that slice has ≥1 CIDR. Browse [output/](https://bhavink.github.io/databricksIPranges/output/) for the live list, or `--list-regions --cloud <cloud>` via the CLI.
+>
+> **When to pick which:** use the combined `<cloud>-<region>.txt` unless your target only accepts one direction. **Azure Storage Account network rules** and **AWS KMS key policies** are common cases where only outbound CP IPs apply — pin those to `<cloud>-<region>-outbound.txt` to keep the rule set tight.
 
 ### Option B — `extract-databricks-ips.py` (programmatic, region-scoped)
 
