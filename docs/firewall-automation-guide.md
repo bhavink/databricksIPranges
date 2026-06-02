@@ -425,9 +425,11 @@ az network firewall policy rule-collection-group collection rule add \
 ```python
 # function_app.py
 import azure.functions as func
+import ipaddress
 import logging
 import os
 import urllib.request
+from typing import List
 
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.network import NetworkManagementClient
@@ -453,6 +455,26 @@ STORAGE_ACCOUNTS   = os.environ.get("STORAGE_ACCOUNTS", "")
 STORAGE_RULE_CAP   = int(os.environ.get("STORAGE_RULE_CAP", "200"))
 
 app = func.FunctionApp()
+
+
+def format_ips_for_azure_storage(raw_cidr_list: List[str]) -> List[str]:
+    """
+    Return the valid IP addresses for Azure Storage Firewall.
+
+    If the CIDR is a /31 or /32, return the individual IP addresses in the range.
+    Otherwise, return the CIDR.
+    """
+    cleaned_ips = []
+    for raw_cidr in raw_cidr_list:
+        net = ipaddress.ip_network(raw_cidr, strict=False)
+        if net.prefixlen in (31, 32):
+            for ip in net:
+                cleaned_ips.append(str(ip))
+        else:
+            cleaned_ips.append(raw_cidr)
+
+    return cleaned_ips
+
 
 @app.timer_trigger(schedule="0 0 1 * * MON", arg_name="timer",
                    run_on_startup=False, use_monitor=True)
@@ -510,7 +532,7 @@ def databricks_ip_sync(timer: func.TimerRequest) -> None:
     # present, leave unrelated rules (e.g. corp egress IPs) untouched.
     if STORAGE_ACCOUNTS:
         storage_client = StorageManagementClient(credential, SUBSCRIPTION_ID)
-        new_set = set(new_ips)
+        new_set = set(format_ips_for_azure_storage(new_ips))
 
         for pair in [p.strip() for p in STORAGE_ACCOUNTS.split(",") if p.strip()]:
             if "/" not in pair:
@@ -526,6 +548,7 @@ def databricks_ip_sync(timer: func.TimerRequest) -> None:
             # Treat any rule in the existing set that came from Databricks as managed,
             # everything else stays put. Without a tag mechanism on IP rules, we use
             # set membership against the previously-applied list as the boundary.
+            current = set(format_ips_for_azure_storage(list(current))) # make sure it is an apple-to-apple comparison
             managed_ips    = existing_ips & current   # rules we're responsible for
             unmanaged_ips  = existing_ips - current   # leave alone (corp IPs, etc.)
 
@@ -567,7 +590,7 @@ def databricks_ip_sync(timer: func.TimerRequest) -> None:
             )
 ```
 
-> **Storage Account caveats.** Network rules accept public IPv4 only — `/31` and `/32` CIDRs are rejected by the portal but accepted by the SDK as single IPs. RFC1918 ranges are silently ignored. If the Databricks feed contains an IPv6 entry it will fail the API call; filter the feed or strip IPv6 before applying.
+> **Storage Account caveats.** Network rules accept public IPv4 only — `/31` and `/32` CIDRs are rejected by both the portal and SDK, they need to be converted into individual IPs first. RFC1918 ranges are silently ignored. If the Databricks feed contains an IPv6 entry it will fail the API call; filter the feed or strip IPv6 before applying.
 
 ### Step 4: Managed Identity Permissions (least privilege)
 
