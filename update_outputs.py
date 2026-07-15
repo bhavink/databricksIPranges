@@ -7,7 +7,7 @@ Run locally or from GitHub Actions. Uses extract-databricks-ips.py (no extra dep
 import hashlib
 import importlib.util
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent
@@ -18,6 +18,10 @@ SOURCE_URL = "https://www.databricks.com/networking/v1/ip-ranges.json"
 GITHUB_REPO = "https://github.com/bhavink/databricksIPranges"
 PAGES_URL = "https://bhavink.github.io/databricksIPranges"
 LINKEDIN_URL = "https://www.linkedin.com/in/bhavink"
+# How long JSON snapshots stay listed in docs/json-history/. Every weekly
+# publish is also git-tagged (vYYYY.MM.DD), so pruning here doesn't lose
+# data — older snapshots stay recoverable from git history/tags.
+HISTORY_RETENTION_DAYS = 180
 
 
 def load_extract_module():
@@ -29,6 +33,25 @@ def load_extract_module():
     return mod
 
 
+def prune_history():
+    """Delete JSON snapshots older than HISTORY_RETENTION_DAYS, always keeping
+    the newest one. Older snapshots aren't lost — every publish is git-tagged
+    (vYYYY.MM.DD), so they remain fetchable from git history, just no longer
+    listed in the browsable directory."""
+    files = sorted(JSON_HISTORY_DIR.glob("ip-ranges-*.json"))
+    if len(files) <= 1:
+        return
+    cutoff = datetime.now(timezone.utc) - timedelta(days=HISTORY_RETENTION_DAYS)
+    for f in files[:-1]:  # never prune the newest snapshot
+        stamp = f.stem[len("ip-ranges-"):]  # "YYYYMMDD-HHMM"
+        try:
+            file_dt = datetime.strptime(stamp, "%Y%m%d-%H%M").replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue  # unexpected filename — leave it alone
+        if file_dt < cutoff:
+            f.unlink()
+
+
 def main():
     DOCS.mkdir(exist_ok=True)
     OUTPUT_DIR.mkdir(exist_ok=True)
@@ -37,7 +60,10 @@ def main():
     mod = load_extract_module()
     data = mod.load_ip_ranges()
 
-    # Optional: save raw JSON for history (one per run); capture revision for index
+    # Save raw JSON for history, but only when it actually changed since the
+    # last snapshot — the upstream feed doesn't change every run, and writing
+    # an identical file under a new timestamp just duplicates content.
+    # Capture revision for the index either way.
     ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M")
     history_file = JSON_HISTORY_DIR / f"ip-ranges-{ts}.json"
     revision_display = "—"
@@ -46,11 +72,20 @@ def main():
         import urllib.request
         with urllib.request.urlopen(SOURCE_URL, timeout=30) as resp:
             raw_data = json.loads(resp.read().decode("utf-8"))
-        with open(history_file, "w") as f:
-            json.dump(raw_data, f, indent=2)
-        latest_history_basename = history_file.name
+        new_content = json.dumps(raw_data, indent=2)
+
+        existing = sorted(JSON_HISTORY_DIR.glob("ip-ranges-*.json"))
+        most_recent = existing[-1] if existing else None
+        if most_recent is not None and most_recent.read_text() == new_content:
+            latest_history_basename = most_recent.name
+        else:
+            history_file.write_text(new_content)
+            latest_history_basename = history_file.name
+
         rev = raw_data.get("schemaVersion") or raw_data.get("timestampSeconds")
         revision_display = str(rev) if rev is not None else "—"
+
+        prune_history()
     except Exception:
         pass  # skip history on failure
 
@@ -157,6 +192,7 @@ def main():
         "  <strong>Looking for ready-to-use IP feeds?</strong> The current published feeds — including <strong>per-region</strong> files like <code>aws-us-east-1.txt</code>, <code>azure-eastus.txt</code>, <code>gcp-us-central1.txt</code>, and <strong>per-region + direction</strong> variants like <code>aws-us-east-1-outbound.txt</code> — are at <a href=\"../output/\">output/</a>. Use those for live firewall configs.",
         "  <br/><br/>",
         "  <em>This page</em> archives the raw <code>ip-ranges.json</code> from each run, useful for point-in-time rollback (e.g. PA EDL) and audit.",
+        f"  <br/><br/><strong>Retention:</strong> snapshots identical to the previous one aren't re-saved, and listed snapshots are pruned after {HISTORY_RETENTION_DAYS} days. Older snapshots aren't deleted from history — fetch them via the repository's <code>vYYYY.MM.DD</code> git tags.",
         "</div>",
         "<ul>",
     ]

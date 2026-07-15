@@ -15,7 +15,7 @@ A Python utility that retrieves, processes, and organizes the official [Databric
 - **Per-region + direction feeds** at `<cloud>-<region>-<inbound|outbound>.txt` (e.g. `aws-us-east-1-outbound.txt`, `azure-eastus-outbound.txt`) — emitted only when that region+direction has ≥1 CIDR, ideal for targets that accept only one direction (Azure Storage Account network rules, AWS KMS key policies)
 - Format compatible with **Palo Alto Networks (PA)** devices (one CIDR per line)
 - **Terraform module** at [`terraform/`](terraform/) — exposes the per-region CIDR list as a sorted, deduplicated output you can wire into any TF resource (managed prefix list, IP group, storage account network rules, Cloud SQL authorized networks, etc.). No new compute infrastructure required.
-- Maintains a history of JSON files
+- Maintains a deduplicated, retention-pruned history of JSON files
 - Generates a user-friendly web interface to browse the data
 
 ## How It Works
@@ -23,7 +23,7 @@ A Python utility that retrieves, processes, and organizes the official [Databric
 1. Downloads the latest JSON from Databricks' official endpoint
 2. Normalizes and filters by cloud, region, and type (inbound/outbound)
 3. Creates separate text files per cloud/type in the `docs/output/` directory
-4. Maintains a history of JSON snapshots in `docs/json-history/`
+4. Maintains a history of JSON snapshots in `docs/json-history/` — a new snapshot is only saved when the content differs from the previous one, and snapshots older than 180 days are pruned from the listing (older data remains recoverable via the repo's `vYYYY.MM.DD` git tags, created on every publish)
 5. Generates an index page and directory listing for easy browsing and automation
 
 ## Data Source & Schema

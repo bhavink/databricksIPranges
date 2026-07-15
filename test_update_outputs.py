@@ -246,5 +246,106 @@ def test_output_index_links_sha256sums():
     assert "SHA256SUMS" in index_html
 
 
+def test_history_snapshot_written_on_first_run():
+    tmp = Path(tempfile.mkdtemp())
+    mod = _load_module(tmp)
+    extract_mod = mod.load_extract_module()
+
+    def fake_load_ip_ranges(source=None):
+        return {"prefixes": extract_mod._normalize_prefixes(FIXTURE)}
+
+    with mock.patch.object(extract_mod, "load_ip_ranges", side_effect=fake_load_ip_ranges):
+        with mock.patch.object(mod, "load_extract_module", return_value=extract_mod):
+            with mock.patch("urllib.request.urlopen", return_value=_FakeResponse(FIXTURE)):
+                mod.main()
+
+    history_files = list(mod.JSON_HISTORY_DIR.glob("ip-ranges-*.json"))
+    assert len(history_files) == 1
+
+
+def test_history_dedups_identical_content():
+    """Running twice with unchanged upstream JSON must not create a second file —
+    only the timestamp would differ, which isn't a meaningful change to record."""
+    tmp = Path(tempfile.mkdtemp())
+    mod = _load_module(tmp)
+    extract_mod = mod.load_extract_module()
+
+    def fake_load_ip_ranges(source=None):
+        return {"prefixes": extract_mod._normalize_prefixes(FIXTURE)}
+
+    with mock.patch.object(extract_mod, "load_ip_ranges", side_effect=fake_load_ip_ranges):
+        with mock.patch.object(mod, "load_extract_module", return_value=extract_mod):
+            with mock.patch("urllib.request.urlopen", return_value=_FakeResponse(FIXTURE)):
+                mod.main()
+                mod.main()
+
+    history_files = list(mod.JSON_HISTORY_DIR.glob("ip-ranges-*.json"))
+    assert len(history_files) == 1
+
+
+def test_history_writes_new_snapshot_on_content_change():
+    """Two runs a week apart (distinct timestamps) with different upstream content
+    must each get their own snapshot file."""
+    import datetime as dt_module
+
+    tmp = Path(tempfile.mkdtemp())
+    mod = _load_module(tmp)
+    extract_mod = mod.load_extract_module()
+
+    def fake_load_ip_ranges(source=None):
+        return {"prefixes": extract_mod._normalize_prefixes(FIXTURE)}
+
+    changed_fixture = json.loads(json.dumps(FIXTURE))
+    changed_fixture["prefixes"][0]["ipv4Prefixes"] = ["9.9.9.0/24"]
+
+    class _FrozenDatetime(dt_module.datetime):
+        _now = dt_module.datetime(2026, 1, 1, tzinfo=dt_module.timezone.utc)
+
+        @classmethod
+        def now(cls, tz=None):
+            return cls._now
+
+    with mock.patch.object(extract_mod, "load_ip_ranges", side_effect=fake_load_ip_ranges):
+        with mock.patch.object(mod, "load_extract_module", return_value=extract_mod):
+            with mock.patch.object(mod, "datetime", _FrozenDatetime):
+                with mock.patch("urllib.request.urlopen", return_value=_FakeResponse(FIXTURE)):
+                    mod.main()
+                _FrozenDatetime._now = dt_module.datetime(2026, 1, 8, tzinfo=dt_module.timezone.utc)
+                with mock.patch("urllib.request.urlopen", return_value=_FakeResponse(changed_fixture)):
+                    mod.main()
+
+    history_files = list(mod.JSON_HISTORY_DIR.glob("ip-ranges-*.json"))
+    assert len(history_files) == 2
+
+
+def test_prune_history_removes_old_snapshots_but_keeps_newest():
+    tmp = Path(tempfile.mkdtemp())
+    mod = _load_module(tmp)
+    mod.JSON_HISTORY_DIR.mkdir(parents=True)
+
+    old = mod.JSON_HISTORY_DIR / "ip-ranges-20200101-0000.json"
+    old.write_text("{}")
+    new = mod.JSON_HISTORY_DIR / "ip-ranges-20990101-0000.json"
+    new.write_text("{}")
+
+    mod.prune_history()
+
+    remaining = {p.name for p in mod.JSON_HISTORY_DIR.glob("ip-ranges-*.json")}
+    assert remaining == {new.name}
+
+
+def test_prune_history_keeps_sole_snapshot_even_if_old():
+    tmp = Path(tempfile.mkdtemp())
+    mod = _load_module(tmp)
+    mod.JSON_HISTORY_DIR.mkdir(parents=True)
+
+    only = mod.JSON_HISTORY_DIR / "ip-ranges-20200101-0000.json"
+    only.write_text("{}")
+
+    mod.prune_history()
+
+    assert only.exists()
+
+
 if __name__ == "__main__":
     sys.exit(__import__("pytest").main([__file__, "-v"]))
