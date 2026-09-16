@@ -278,7 +278,7 @@ def main():
   <p><strong>Note:</strong> Databricks may update IP ranges periodically. Always verify the ranges against your requirements before implementation. Availability may vary by cloud and region.</p>
 
   <h2>Contact</h2>
-  <p><a href="{LINKEDIN_URL}">Connect on LinkedIn</a> · <a href="{GITHUB_REPO}">Reach on GitHub</a> · <a href="https://bhavink.github.io/">All Projects</a></p>
+  <p><a href="{LINKEDIN_URL}">Connect on LinkedIn</a> · <a href="{GITHUB_REPO}">Reach on GitHub</a> · <a href="https://bhavink.github.io/">Bhavin Kukadia</a></p>
 
   <p class="meta">Generated on {now_utc} by GitHub Automation</p>
   <div class="disclaimer">This page, its contents, and the associated repository are provided "AS IS" without warranty of any kind. Please refer to the README in the repository for the full disclaimer.</div>
